@@ -56,9 +56,13 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         combat_start = time.time()
         while self.in_combat():
             ret = True
+            current_char = None
             try:
-                self.get_current_char().perform()
+                current_char = self.get_current_char()
+                current_char.perform()
             except CharDeadException:
+                if self.try_continue_after_char_dead(current_char):
+                    continue
                 self.log_error(f'Characters dead', notify=True)
                 break
             except NotInCombatException as e:
