@@ -8,6 +8,8 @@ class Aemeath(BaseChar):
     LIBERATION_FORCE_DURATION = 30
     LIB2_PREPARE_WINDOW = 8
     INTRO_LIBERATION_DELAY = 14
+    ENHANCE_E_REPEAT_GUARD = 2
+    ENHANCE_E_SETTLE_TIME = 0.25
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -71,8 +73,7 @@ class Aemeath(BaseChar):
                     return
                 action_performed = True
             elif self.enhance_e_available():
-                if self.click_resonance(has_animation=True, send_click=True, animation_min_duration=0.5,
-                                        time_out=1.5)[0]:
+                if self.click_enhance_e_once():
                     self.record_enhance_e()
                     self.click_echo(time_out=0)
                     self.task.next_frame()
@@ -90,8 +91,18 @@ class Aemeath(BaseChar):
             self.cycle_sleep()
 
     def enhance_e_available(self):
+        if self.time_elapsed_accounting_for_freeze(self.last_enhance_e) < self.ENHANCE_E_REPEAT_GUARD:
+            return False
         return self.task.find_one('aemeath_e1', threshold=0.7) or self.task.find_one('aemeath_e2',
                                                                                      threshold=0.7)
+
+    def click_enhance_e_once(self):
+        if not self.enhance_e_available():
+            return False
+        self.record_resonance_use()
+        self.send_resonance_key()
+        self.sleep(self.ENHANCE_E_SETTLE_TIME, check_combat=False)
+        return True
 
     def heavy_wait_highlight_down(self):
         self.task.mouse_down()
