@@ -1,6 +1,7 @@
 from src.char.BaseChar import BaseChar, SwitchPriority, forte_white_color
 
 class Linnai(BaseChar):
+    CON_READY_TO_SWITCH = 0.99
     RES_CHECK_THRESHOLD = 0.6
     INTRO_RES_WAIT = 1.0
     AEMEATH_INTRO_RES_WAIT = 1.6
@@ -11,10 +12,52 @@ class Linnai(BaseChar):
         self.last_heavy = 0
 
     def do_perform(self):
-        if self.has_intro and self.check_res():
-            self.continues_normal_attack(1.33)
-        else:
-            self.charge_heavy()
+        if self.has_intro:
+            if self.is_con_ready_to_switch():
+                return self.switch_after_liberation()
+            if self.check_res():
+                self.continues_normal_attack(1.33, until_con_full=True)
+            else:
+                self.continues_normal_attack(1, until_con_full=True)
+                if self.is_con_ready_to_switch():
+                    return self.switch_after_liberation()
+                self.click_echo(time_out=0)
+                if not self.is_con_ready_to_switch():
+                    self.click_liberation()
+                if self.is_con_ready_to_switch():
+                    return self.switch_after_liberation()
+                if not self.is_mouse_forte_full():
+                    self.click_resonance()
+                if self.is_con_ready_to_switch():
+                    return self.switch_after_liberation()
+                self.task.wait_until(lambda: self.is_mouse_forte_full() or self.is_con_ready_to_switch(),
+                                     post_action=self.click, time_out=2)
+                if self.is_con_ready_to_switch():
+                    return self.switch_after_liberation()
+                self.task.mouse_down() 
+                if self.task.wait_until(lambda: not self.is_mouse_forte_full(), time_out=5):
+                    self.task.mouse_up()
+                    self.sleep(0.4)                 
+                    self.perform_under_intro()
+                else:
+                    self.task.mouse_up()
+                
+        else: 
+            self.click_echo(time_out=0)
+            if self.is_con_ready_to_switch():
+                pass
+            elif self.perform_under_intro():
+                pass
+            elif self.flying():
+                self.continues_normal_attack(0.1)
+            elif not self.is_con_ready_to_switch() and self.click_liberation():
+                self.continues_normal_attack(0.5, until_con_full=True)
+            if not self.is_con_ready_to_switch():
+                self.click_resonance()
+
+        return self.switch_after_liberation()
+
+    def switch_after_liberation(self):
         if self.liberation_available():
             self.click_liberation()
         return self.switch_next_char()
@@ -43,19 +86,24 @@ class Linnai(BaseChar):
         if not self.wait_for_accelerate_ready():
             self.logger.debug(f'Linnai fails entering accelerate mode!')
             return False
-        self.task.wait_until(lambda: self.is_color_full() or self.is_con_full(), post_action=self.click,
+        self.task.wait_until(lambda: self.is_color_full() or self.is_con_ready_to_switch(), post_action=self.click,
                                      time_out=1)
-        if self.task.wait_until(lambda: not self.is_forte_full(),
+        if self.is_con_ready_to_switch():
+            return True
+        if self.task.wait_until(lambda: not self.is_forte_full() or self.is_con_ready_to_switch(),
              post_action=self.task.jump, time_out=3):
-        
-            if self.task.wait_until(lambda: self.click_resonance()[0],
+            if self.is_con_ready_to_switch():
+                return True
+            if self.task.wait_until(lambda: self.is_con_ready_to_switch() or self.click_resonance()[0],
              post_action=self.click, time_out=2):
+                if self.is_con_ready_to_switch():
+                    return True
                 self.wait_after_resonance_kick()
                 second_kick = False
 
                 def click_second_resonance():
                     nonlocal second_kick
-                    if self.is_con_full():
+                    if self.is_con_ready_to_switch():
                         return True
                     second_kick = self.click_resonance()[0]
                     return second_kick
@@ -63,9 +111,12 @@ class Linnai(BaseChar):
                 self.task.wait_until(click_second_resonance, post_action=self.click, time_out=3)
                 if second_kick:
                     self.wait_after_resonance_kick()
-        if not self.is_con_full() and self.click_liberation():
-            self.task.wait_until(self.is_con_full, post_action=self.click_with_interval, time_out=1.2) 
+        if not self.is_con_ready_to_switch() and self.click_liberation():
+            self.task.wait_until(self.is_con_ready_to_switch, post_action=self.click_with_interval, time_out=1.2)
         return True
+
+    def is_con_ready_to_switch(self):
+        return self.get_current_con() >= self.CON_READY_TO_SWITCH
 
     def wait_after_resonance_kick(self):
         self.sleep(0.3)
