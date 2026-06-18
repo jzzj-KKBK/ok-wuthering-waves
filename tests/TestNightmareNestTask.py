@@ -1,6 +1,5 @@
 import unittest
 import re
-from types import SimpleNamespace
 
 from src.task.NightmareNestTask import NestTarget, NightmareNestTask
 
@@ -54,7 +53,7 @@ class TestNightmareNestTask(unittest.TestCase):
         task.back = lambda *args, **kwargs: backs.append(kwargs)
         task.log_info = lambda *args, **kwargs: None
 
-        target = NestTarget(object(), 'go_nightmare:0/36:0.205:locked')
+        target = NestTarget(object(), 'go_nightmare:36:0.205')
 
         self.assertFalse(task._travel_to_nest_or_skip(target))
         self.assertIn(target.cache_key, task._unreachable_nests)
@@ -67,25 +66,20 @@ class TestNightmareNestTask(unittest.TestCase):
         task = NightmareNestTask.__new__(NightmareNestTask)
         task.count_re = re.compile(r"(\d{1,2})/(\d{1,2})")
         task.queues = [lambda: None]
-        task._unreachable_nests = {'<lambda>:0/36:0.205:locked'}
+        task._unreachable_nests = {'<lambda>:36:10'}
         task.log_info = lambda *args, **kwargs: None
         task.height_of_screen = lambda value: 1000 * value
         task.width_of_screen = lambda value: 2000 * value
-        task.box_of_screen = lambda *args: args
+        ocr_calls = []
 
         count_boxes = [
             FakeBox('0/36', y=200),
             FakeBox('0/36', y=300),
         ]
-        row_texts = iter([
-            [SimpleNamespace(name='locked')],
-            [SimpleNamespace(name='open')],
-        ])
 
         def ocr(*args, **kwargs):
-            if kwargs.get('match'):
-                return count_boxes
-            return next(row_texts)
+            ocr_calls.append((args, kwargs))
+            return count_boxes
 
         task.ocr = ocr
 
@@ -93,8 +87,19 @@ class TestNightmareNestTask(unittest.TestCase):
 
         self.assertIsInstance(target, NestTarget)
         self.assertIs(target.box, count_boxes[1])
-        self.assertIn('open', target.cache_key)
+        self.assertEqual('<lambda>:36:15', target.cache_key)
         self.assertEqual(1800, target.box.x)
+        self.assertEqual(1, len(ocr_calls))
+
+    def test_cache_key_ignores_small_ocr_position_jitter(self):
+        task = NightmareNestTask.__new__(NightmareNestTask)
+        task.queues = [lambda: None]
+        task.height_of_screen = lambda value: 1000 * value
+
+        first = task._make_nest_cache_key(FakeBox('0/36', y=200), '36')
+        shifted = task._make_nest_cache_key(FakeBox('0/36', y=202), '36')
+
+        self.assertEqual(first, shifted)
 
 
 if __name__ == '__main__':
