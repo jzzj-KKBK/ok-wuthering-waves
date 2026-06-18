@@ -63,6 +63,9 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
             except CharDeadException:
                 if self.try_continue_after_char_dead(current_char):
                     continue
+                if self.revive_all_dead_characters():
+                    self.log_info('all characters revived, leave current auto combat loop')
+                    break
                 self.log_error(f'Characters dead', notify=True)
                 break
             except NotInCombatException as e:
