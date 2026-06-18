@@ -600,6 +600,14 @@ class BaseWWTask(BaseTask):
 
     def walk_to_treasure(self, send_f=True, raise_if_not_found=True):
         self.log_info('start walk_to_treasure')
+        # 奖励可能显示为屏幕边缘的方向图标，先短暂确认，避免在固定视角下空等 30 秒。
+        treasure_ready = self.wait_until(
+            lambda: self.find_f_with_claim_text() or self.find_treasure_icon(),
+            raise_if_not_found=False,
+            time_out=3,
+        )
+        if not treasure_ready:
+            raise CannotFindException('can not find treasure icon or interaction')
         if not self.walk_to_box(self.find_treasure_icon, end_condition=self.find_f_with_claim_text):
             if not self.walk_to_box(self.find_treasure_icon, end_condition=self.find_f_with_text):
                 raise Exception(f'can not walk to treasure!')
