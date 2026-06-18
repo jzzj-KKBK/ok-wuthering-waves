@@ -55,6 +55,7 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
             self.use_liberation = True
         combat_start = time.time()
         switched_to_healer = False
+        revived_after_all_dead = False
         while self.in_combat():
             ret = True
             current_char = None
@@ -69,13 +70,14 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
                     continue
                 if self.revive_all_dead_characters():
                     self.log_info('all characters revived, leave current auto combat loop')
+                    revived_after_all_dead = True
                     break
                 self.log_error(f'Characters dead', notify=True)
                 break
             except NotInCombatException as e:
                 logger.info(f'auto_combat_task_out_of_combat {int(time.time() - combat_start)} {e}')
                 break
-        if ret:
+        if ret and not revived_after_all_dead:
             self.combat_end()
             self.switch_healer()
         return ret
