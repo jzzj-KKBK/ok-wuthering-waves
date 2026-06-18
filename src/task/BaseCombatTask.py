@@ -60,6 +60,8 @@ class BaseCombatTask(CombatCheck):
     dead_gray_ratio_threshold = 0.55
     alive_gray_ratio_threshold = 0.45
     char_alive_check_interval = 0.5
+    team_revive_button = (0.5, 0.86)
+    team_revive_timeout = 70
     if con_full_size is None:
         con_full_size = Config("_con_full_size", {
             "0": 0,
@@ -703,6 +705,31 @@ class BaseCombatTask(CombatCheck):
             return False
         self.send_key('esc', after_sleep=0.2)
         return True
+
+    def revive_all_dead_characters(self):
+        """全员死亡时点击免费复苏，并等待角色回到大世界队伍态。"""
+        if not self.wait_feature('revive_confirm_hcenter_vcenter', threshold=0.8,
+                                 time_out=2, raise_if_not_found=False):
+            return False
+
+        self.log_info('all characters dead, waiting for team revive')
+        start = time.time()
+        while time.time() - start < self.team_revive_timeout:
+            if self.in_team_and_world():
+                self.reset_char_alive_states()
+                self.scene.set_not_in_combat()
+                self.info_set('Revive', 'Success')
+                return True
+            self.click(*self.team_revive_button, after_sleep=0.5)
+            if self.wait_in_team_and_world(time_out=1, raise_if_not_found=False):
+                self.reset_char_alive_states()
+                self.scene.set_not_in_combat()
+                self.info_set('Revive', 'Success')
+                return True
+
+        self.log_error('team revive timed out', notify=True)
+        self.info_set('Revive', 'Failed')
+        return False
 
     def try_continue_after_char_dead(self, current_char):
         self.set_char_alive(current_char, False)
