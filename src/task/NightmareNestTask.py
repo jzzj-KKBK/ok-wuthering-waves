@@ -195,7 +195,7 @@ class NightmareNestTask(WWOneTimeTask, BaseCombatTask):
                 numerator = match.group(1)
                 denominator = match.group(2)
                 if numerator != denominator and denominator in ['24', '36', '48', '41']:
-                    cache_key = self._make_nest_cache_key(count_box, numerator, denominator)
+                    cache_key = self._make_nest_cache_key(count_box, denominator)
                     if cache_key in self._unreachable_nests:
                         self.log_info(f'skip cached unreachable nightmare nest: {cache_key}')
                         continue
@@ -206,20 +206,13 @@ class NightmareNestTask(WWOneTimeTask, BaseCombatTask):
                     count_box.width = 1
                     return NestTarget(count_box, cache_key)
 
-    def _make_nest_cache_key(self, count_box, numerator, denominator):
+    def _make_nest_cache_key(self, count_box, denominator):
         action_name = self.queues[0].__name__ if self.queues else 'unknown'
         screen_height = max(self.height_of_screen(1), 1)
         row_y = (count_box.y + count_box.height / 2) / screen_height
-
-        # 列表页无法直接判断是否解锁，缓存使用当前分类、行位置和行内文字组合，避免重复点击同一行。
-        row_top = max(0.13, row_y - 0.08)
-        row_bottom = min(0.91, row_y + 0.04)
-        row_box = self.box_of_screen(0.36, row_top, 0.88, row_bottom)
-        row_texts = self.ocr(box=row_box)
-        row_text = '|'.join(text.name for text in row_texts) if row_texts else ''
-        if not row_text:
-            row_text = f'y={row_y:.3f}'
-        return f'{action_name}:{numerator}/{denominator}:{row_y:.3f}:{row_text}'
+        row_slot = round(row_y / 0.02)
+        # 使用粗粒度行槽位，避免 OCR 坐标轻微抖动导致同一目标被重复点击。
+        return f'{action_name}:{denominator}:{row_slot}'
 
 
 def convert_image_to_negative(img):
