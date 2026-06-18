@@ -17,7 +17,7 @@ from src.char.Rebecca import Rebecca
 from src.char.ShoreKeeper import ShoreKeeper
 from src.char.Verina import Verina
 from src.char.YangYangSp import YangYangSp
-from src.task.BaseCombatTask import NotInCombatException
+from src.task.BaseCombatTask import NotInCombatException, CharDeadException
 from src.task.AutoCombatTask import AutoCombatTask
 
 config['debug'] = True
@@ -252,6 +252,76 @@ class TestChar(TaskTestCase):
 
         combat.set_char_alive(healer, True)
         self.assertEqual(combat._choose_switch_target(current, False), healer)
+
+    def test_all_dead_revive_clicks_button_and_resets_states(self):
+        class Scene:
+            def __init__(self):
+                self.not_in_combat = False
+
+            def set_not_in_combat(self):
+                self.not_in_combat = True
+
+        combat = AutoCombatTask.__new__(AutoCombatTask)
+        combat.scene = Scene()
+        combat.char_alive_state = [False, False, False]
+        combat.char_dead_votes = [2, 2, 2]
+        combat.char_alive_votes = [0, 0, 0]
+        combat.clicks = []
+        combat.info = []
+        combat.wait_feature = lambda *args, **kwargs: True
+        combat.in_team_and_world = lambda: False
+        combat.click = lambda x, y, **kwargs: combat.clicks.append((x, y))
+        combat.wait_in_team_and_world = lambda **kwargs: True
+        combat.log_info = lambda *args, **kwargs: None
+        combat.log_error = lambda *args, **kwargs: None
+        combat.info_set = lambda key, value: combat.info.append((key, value))
+
+        self.assertTrue(combat.revive_all_dead_characters())
+        self.assertEqual(combat.clicks, [combat.team_revive_button])
+        self.assertEqual(combat.char_alive_state, [True, True, True])
+        self.assertTrue(combat.scene.not_in_combat)
+        self.assertIn(('Revive', 'Success'), combat.info)
+
+    def test_all_dead_revive_requires_death_popup(self):
+        combat = AutoCombatTask.__new__(AutoCombatTask)
+        combat.wait_feature = lambda *args, **kwargs: False
+        combat.click = lambda *args, **kwargs: self.fail('revive button should not be clicked')
+
+        self.assertFalse(combat.revive_all_dead_characters())
+
+    def test_auto_combat_revives_after_last_character_dies(self):
+        class Scene:
+            @staticmethod
+            def in_team(check):
+                return True
+
+        class CurrentChar:
+            @staticmethod
+            def perform():
+                raise CharDeadException('dead')
+
+        combat = AutoCombatTask.__new__(AutoCombatTask)
+        combat.scene = Scene()
+        combat.config = {'Use Liberation': True}
+        combat.warm_up_char_features = lambda: None
+        combat.in_world = lambda: True
+        combat.in_combat = lambda: True
+        combat.in_team_and_world = lambda: True
+        combat.get_current_char = lambda: CurrentChar()
+        combat.try_continue_after_char_dead = lambda current: False
+        combat.revive_calls = 0
+
+        def revive():
+            combat.revive_calls += 1
+            return True
+
+        combat.revive_all_dead_characters = revive
+        combat.log_info = lambda *args, **kwargs: None
+        combat.log_error = lambda *args, **kwargs: None
+        combat.combat_end = lambda: None
+
+        self.assertTrue(combat.run())
+        self.assertEqual(combat.revive_calls, 1)
 
     def test_chisa_support_intro_records_buff_and_switches_immediately(self):
         class Task:
