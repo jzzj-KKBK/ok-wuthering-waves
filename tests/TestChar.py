@@ -881,10 +881,12 @@ class TestChar(TaskTestCase):
         combat.revive_all_dead_characters = revive
         combat.log_info = lambda *args, **kwargs: None
         combat.log_error = lambda *args, **kwargs: None
-        combat.combat_end = lambda: None
+        combat.combat_end_calls = 0
+        combat.combat_end = lambda: setattr(combat, 'combat_end_calls', combat.combat_end_calls + 1)
 
         self.assertTrue(combat.run())
         self.assertEqual(combat.revive_calls, 1)
+        self.assertEqual(combat.combat_end_calls, 0)
 
     def _make_support_chisa(self, has_intro, buffed=False):
         class Task:
