@@ -84,7 +84,7 @@ class Phoebe(BaseChar):
             self.state["priority_liberation_cast"] = 1
             self.check_combat()
         if status_entered == State.SUCCESS or self.judge_forte() > 0:
-            self.starflash_combo()
+            self.starflash_combo_with_setup(status_entered == State.SUCCESS)
             # 第一次重击后检查大招（可插入），无论是否触发都继续打第二次重击
             self._try_liberation_now()
             if (self.attribute == 2 and
@@ -275,6 +275,12 @@ class Phoebe(BaseChar):
         if self.perform_heavy_attack():
             self.state["starflash_combo"] += 1
 
+    def starflash_combo_with_setup(self, status_entered=False):
+        if status_entered and self.star_available and self.judge_forte() == 0:
+            self.continues_normal_attack(0.45)
+            self.continues_right_click(0.05)
+        self.starflash_combo()
+
     def perform_heavy_attack(self):
         if self.absolution_or_confession() == State.UNAVAILABLE:
             self.logger.info('perform heavy_attack')
@@ -397,6 +403,13 @@ class Phoebe(BaseChar):
             return State.SUCCESS
         return State.UNAVAILABLE
 
+    def switch_next_char(self, *args, **kwargs):
+        self._try_cast_liberation_before_switch()
+        if self.attribute == 2 and self.is_con_full():
+            self.click_echo()
+            self.state["outro"] += 1
+        return super().switch_next_char(*args, **kwargs)
+
     def _try_liberation_now(self):
         """每个主要动作前检查大招，可用就立即释放，返回True表示已释放"""
         if (self.star_available and not self.flying()
@@ -426,13 +439,6 @@ class Phoebe(BaseChar):
             self.check_combat()
             return True
         return False
-
-    def switch_next_char(self, *args, **kwargs):
-        self._try_cast_liberation_before_switch()
-        if self.attribute == 2 and self.is_con_full():
-            self.click_echo()
-            self.state["outro"] += 1
-        return super().switch_next_char(*args, **kwargs)
 
     def get_switch_priority(self, current_char=None, has_intro=False, target_low_con=False):
         phase = get_zpr_phase(self.task)
