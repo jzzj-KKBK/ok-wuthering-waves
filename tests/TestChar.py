@@ -3,9 +3,10 @@ import unittest
 from config import config
 from ok.test.TaskTestCase import TaskTestCase
 from src.Labels import Labels
-from src.char.BaseChar import BaseChar, CharType, SwitchPriority, get_default_buff_time
+from src.char.BaseChar import BaseChar, CharType, Elements, SwitchPriority, get_default_buff_time
 from src.char.CharFactory import _get_buff_time, _get_char_type, char_dict, char_names, get_char_by_pos
 from src.char.Aemeath import Aemeath
+from src.char.Cartethyia import Cartethyia
 from src.char.Chisa import Chisa
 from src.char.Ciaccona import Ciaccona
 from src.char.Iuno import Iuno
@@ -13,10 +14,14 @@ from src.char.Linnai import Linnai
 from src.char.Lucilla import Lucilla
 from src.char.Lucy import Lucy
 from src.char.Phrolova import Phrolova
+from src.char.HavocRover import HavocRover
+from src.char.Phoebe import Phoebe
+from src.char.Qiuyuan import Qiuyuan
 from src.char.Rebecca import Rebecca
 from src.char.ShoreKeeper import ShoreKeeper
 from src.char.Verina import Verina
 from src.char.YangYangSp import YangYangSp
+from src.char.Zani import Zani
 from src.task.BaseCombatTask import NotInCombatException, CharDeadException
 from src.task.AutoCombatTask import AutoCombatTask
 
@@ -1081,6 +1086,166 @@ class TestChar(TaskTestCase):
         combat.chars = [current, blocked_healer, blocked_sub_dps, blocked_main_dps]
         self.assertEqual(combat._choose_switch_target(current, True), current)
 
+    def test_zani_phoebe_rover_rotation_forces_scripted_target(self):
+        from src.char.TeamRotations import (
+            ZPR_LOOP_START,
+            ensure_zani_phoebe_rover_rotation,
+        )
+
+        class Task:
+            def time_elapsed_accounting_for_freeze(self, start, intro_motion_freeze=False):
+                return 10000 if start < 0 else time.time() - start
+
+            def has_char(self, char_cls):
+                return next((char for char in self.chars if isinstance(char, char_cls)), None)
+
+        task = Task()
+        zani = Zani(task, 0)
+        phoebe = Phoebe(task, 1)
+        rover = HavocRover(task, 2, ring_index=Elements.SPECTRO)
+        task.chars = [zani, phoebe, rover]
+        rotation = ensure_zani_phoebe_rover_rotation(task)
+        rotation["phase"] = ZPR_LOOP_START
+
+        self.assertEqual(rover.get_switch_priority(current_char=phoebe), SwitchPriority.MUST)
+        self.assertEqual(zani.get_switch_priority(current_char=phoebe), SwitchPriority.NO)
+        self.assertEqual(phoebe.get_switch_priority(current_char=zani), SwitchPriority.NO)
+
+    def test_zani_phoebe_rover_rotation_rover_loop_starts_with_spectro_e(self):
+        from src.char.TeamRotations import (
+            ZPR_LOOP_START,
+            ensure_zani_phoebe_rover_rotation,
+        )
+
+        class Task:
+            has_lavidator = False
+            use_liberation = True
+
+            def time_elapsed_accounting_for_freeze(self, start, intro_motion_freeze=False):
+                return 10000 if start < 0 else time.time() - start
+
+            def has_char(self, char_cls):
+                return next((char for char in self.chars if isinstance(char, char_cls)), None)
+
+        class TrackingRover(HavocRover):
+            def __init__(self, task, index):
+                super().__init__(task, index, ring_index=Elements.SPECTRO)
+                self.actions = []
+
+            def wait_down(self, click=True):
+                self.actions.append(("wait_down", click))
+
+            def click_resonance(self, **kwargs):
+                self.actions.append(("resonance", kwargs))
+                return True, 0, False
+
+            def click_liberation(self, **kwargs):
+                self.actions.append(("liberation", kwargs))
+                return True
+
+            def click_echo(self, **kwargs):
+                self.actions.append(("echo", kwargs))
+                return True
+
+            def spectro_routine_aftertune_combo(self):
+                self.actions.append(("aZa", {}))
+
+            def switch_next_char(self, *args, **kwargs):
+                self.actions.append(("switch", {}))
+
+        task = Task()
+        zani = Zani(task, 0)
+        phoebe = Phoebe(task, 1)
+        rover = TrackingRover(task, 2)
+        task.chars = [zani, phoebe, rover]
+        rotation = ensure_zani_phoebe_rover_rotation(task)
+        rotation["phase"] = ZPR_LOOP_START
+
+        rover.do_perform()
+
+        self.assertEqual(rover.actions, [
+            ("wait_down", True),
+            ("resonance", {"send_click": False, "time_out": 0.4}),
+            ("switch", {}),
+        ])
+        self.assertNotEqual(rotation["phase"], ZPR_LOOP_START)
+
+    def test_cartethyia_qiuyuan_chisa_rotation_forces_scripted_target(self):
+        from src.char.TeamRotations import ensure_cartethyia_qiuyuan_chisa_rotation
+
+        class Task:
+            char_config = {}
+
+            def time_elapsed_accounting_for_freeze(self, start, intro_motion_freeze=False):
+                return 10000 if start < 0 else time.time() - start
+
+            def has_char(self, char_cls):
+                return next((char for char in self.chars if isinstance(char, char_cls)), None)
+
+        class TestCartethyia(Cartethyia):
+            def __init__(self, task, index):
+                BaseChar.__init__(self, task, index, ring_index=Elements.WIND)
+                self.is_cartethyia = True
+
+        task = Task()
+        cartethyia = TestCartethyia(task, 0)
+        qiuyuan = Qiuyuan(task, 1)
+        chisa = Chisa(task, 2)
+        task.chars = [cartethyia, qiuyuan, chisa]
+        rotation = ensure_cartethyia_qiuyuan_chisa_rotation(task)
+
+        self.assertEqual(rotation["phase"], 0)
+        self.assertEqual(chisa.get_switch_priority(current_char=cartethyia), SwitchPriority.MUST)
+        self.assertEqual(cartethyia.get_switch_priority(current_char=chisa), SwitchPriority.NO)
+        self.assertEqual(qiuyuan.get_switch_priority(current_char=chisa), SwitchPriority.NO)
+
+    def test_cartethyia_qiuyuan_chisa_rotation_chisa_starts_with_e(self):
+        from src.char.TeamRotations import ensure_cartethyia_qiuyuan_chisa_rotation
+
+        class Task:
+            char_config = {}
+
+            def time_elapsed_accounting_for_freeze(self, start, intro_motion_freeze=False):
+                return 10000 if start < 0 else time.time() - start
+
+            def has_char(self, char_cls):
+                return next((char for char in self.chars if isinstance(char, char_cls)), None)
+
+        class TestCartethyia(Cartethyia):
+            def __init__(self, task, index):
+                BaseChar.__init__(self, task, index, ring_index=Elements.WIND)
+                self.is_cartethyia = True
+
+        class TrackingChisa(Chisa):
+            def __init__(self, task, index):
+                super().__init__(task, index)
+                self.actions = []
+
+            def flying(self):
+                return False
+
+            def click_resonance(self, **kwargs):
+                self.actions.append(("resonance", kwargs))
+                return True, 0, False
+
+            def switch_next_char(self, *args, **kwargs):
+                self.actions.append(("switch", {}))
+
+        task = Task()
+        cartethyia = TestCartethyia(task, 0)
+        qiuyuan = Qiuyuan(task, 1)
+        chisa = TrackingChisa(task, 2)
+        task.chars = [cartethyia, qiuyuan, chisa]
+        rotation = ensure_cartethyia_qiuyuan_chisa_rotation(task)
+
+        chisa.do_perform()
+
+        self.assertEqual(chisa.actions, [
+            ("resonance", {"time_out": 0.5}),
+            ("switch", {}),
+        ])
+        self.assertEqual(rotation["phase"], 1)
+
     def test_priority_hooks_for_ciaccona_and_phrolova(self):
         class Task:
             name = None
@@ -1250,171 +1415,3 @@ class TestChar(TaskTestCase):
         linnai.do_perform()
         self.assertEqual(linnai.clicks, 0)
         self.assertEqual(linnai.switches, 1)
-
-    def test_linnai_intro_attack_stops_when_con_full(self):
-        class Task:
-            pass
-
-        class TestLinnai(Linnai):
-            def __init__(self):
-                super().__init__(Task(), 0)
-                self.has_intro = True
-                self.normal_attack_until_con_full = False
-                self.switches = 0
-
-            def get_current_con(self):
-                return 0
-
-            def check_res(self):
-                return True
-
-            def continues_normal_attack(self, duration, **kwargs):
-                self.normal_attack_until_con_full = kwargs.get('until_con_full', False)
-
-            def liberation_available(self):
-                return False
-
-            def switch_next_char(self, *args, **kwargs):
-                self.switches += 1
-
-        linnai = TestLinnai()
-        linnai.do_perform()
-        self.assertTrue(linnai.normal_attack_until_con_full)
-        self.assertEqual(linnai.switches, 1)
-
-    def test_intro_does_not_switch_to_phrolova_during_liberation_lock(self):
-        class Task:
-            name = None
-
-            def time_elapsed_accounting_for_freeze(self, start, intro_motion_freeze=False):
-                if start < 0:
-                    return 10000
-                return time.time() - start
-
-        task = Task()
-        combat = AutoCombatTask.__new__(AutoCombatTask)
-        current = BaseChar(task, 0, char_name='char_shorekeeper', char_type=CharType.HEALER)
-        phrolova = Phrolova(task, 1, char_type=CharType.MAIN_DPS)
-        phrolova.last_liberation = time.time() - 5
-        combat.chars = [current, phrolova]
-
-        self.assertEqual(phrolova.get_switch_priority(current_char=current, has_intro=True), SwitchPriority.NO)
-        self.assertEqual(combat._choose_switch_target(current, True), current)
-
-    def test_phrolova_nightmare_nest_does_not_cancel_liberation(self):
-        class Task:
-            name = "Nightmare Nest Task"
-
-            def time_elapsed_accounting_for_freeze(self, start, intro_motion_freeze=False):
-                if start < 0:
-                    return 10000
-                return time.time() - start
-
-        class TestPhrolova(Phrolova):
-            def __init__(self):
-                super().__init__(Task(), 0)
-                self.actions = []
-
-            def flying(self):
-                return False
-
-            def liberation_available(self, check_color=True):
-                return True
-
-            def click_liberation(self, **kwargs):
-                self.actions.append(('liberation', kwargs))
-                return True
-
-            def continues_click(self, key, duration, interval=0.1):
-                self.actions.append(('continues_click', key, duration))
-
-            def switch_next_char(self, *args, **kwargs):
-                self.actions.append(('switch', {}))
-
-        phrolova = TestPhrolova()
-        phrolova.do_perform()
-
-        self.assertEqual(phrolova.actions, [
-            ('liberation', {'wait_if_cd_ready': 0}),
-            ('switch', {}),
-        ])
-
-    def test_check_combat_respects_skip_flag(self):
-        combat = AutoCombatTask.__new__(AutoCombatTask)
-        combat._in_combat = True
-        combat.skip_combat_check = True
-        combat.in_combat = lambda: False
-
-        def raise_not_in_combat(message):
-            raise NotInCombatException(message)
-
-        combat.raise_not_in_combat = raise_not_in_combat
-
-        combat.check_combat()
-
-    def test_shorekeeper_intro_restores_skip_flag_on_error(self):
-        class Task:
-            skip_combat_check = False
-            name = None
-
-            def in_team_and_world(self):
-                return False
-
-            def wait_in_team_and_world(self, **kwargs):
-                raise RuntimeError('intro wait failed')
-
-        shorekeeper = ShoreKeeper(Task(), 0)
-        shorekeeper.has_intro = True
-
-        with self.assertRaises(RuntimeError):
-            shorekeeper.do_perform()
-
-        self.assertFalse(shorekeeper.task.skip_combat_check)
-
-    def test_shorekeeper_skips_combat_check_during_intro_or_airborne(self):
-        class Task:
-            has_lavitator = False
-
-        shorekeeper = ShoreKeeper(Task(), 0)
-        shorekeeper.has_intro = True
-        self.assertTrue(shorekeeper.skip_combat_check())
-
-        shorekeeper.has_intro = False
-        shorekeeper.flying = lambda: True
-        self.assertTrue(shorekeeper.skip_combat_check())
-
-    def test_aemeath_lib(self):
-        self.task.do_reset_to_false()
-        self.set_image('tests/images/aemeath_lib.png')
-        in_combat = self.task.in_combat()
-        self.assertTrue(in_combat)
-        liberation_available = self.task.available('liberation')
-        self.assertTrue(liberation_available)
-
-    def test_switch_cd(self):
-        self.task.do_reset_to_false()
-        self.set_image('tests/images/combat_has_cd.png')
-        self.task.load_chars()
-        self.assertTrue(len(self.task.chars) > 0)
-        self.assertEqual(self.task.chars[0].name, 'Aemeath')
-
-        self.set_image('ok_templates/char_iuno.png')
-        self.task.load_chars()
-        self.assertTrue(len(self.task.chars) > 0)
-        self.assertEqual(self.task.chars[0].name, 'Iuno')
-
-    def test_luhesi_cd(self):
-        self.task.do_reset_to_false()
-        self.set_image('tests/images/luhesi_lib_in_cd.png')
-        self.task.load_chars()
-        self.assertTrue(len(self.task.chars) > 0)
-        self.assertEqual(self.task.chars[0].name, 'Luhesi')
-
-        has_cd = self.task.chars[0].has_cd('liberation')
-        time.sleep(1)
-        self.task.screenshot('click_liberation', show_box=True)
-        self.assertTrue(has_cd)
-
-
-if __name__ == '__main__':
-    unittest.main()

@@ -47,7 +47,6 @@ class Phoebe(BaseChar):
         if self.has_intro:
             self.continues_normal_attack(1.5)
         else:
-            # 非变奏切人后会自然接一段普攻，先等它结算协奏，再抢大招。
             self.sleep(0.01)
         self._try_liberation_now()
 
@@ -82,7 +81,6 @@ class Phoebe(BaseChar):
             self.check_combat()
         if status_entered == State.SUCCESS or self.judge_forte() > 0:
             self.starflash_combo()
-            # 第一次重击后检查大招（可插入），无论是否触发都继续打第二次重击
             self._try_liberation_now()
             if (self.attribute == 2 and
                     self.state["starflash_combo"] < 2 and
@@ -92,7 +90,6 @@ class Phoebe(BaseChar):
         self._try_liberation_now()
         if self.resonance_available():
             if self.attribute == 2:
-                # 第一轮未完成时跳过共鸣点击，避免触发非蓝色重击打断普攻填协奏
                 if not self.confession_ready() and self.first_rotation_done:
                     self.click_resonance_once()
             else:
@@ -104,16 +101,11 @@ class Phoebe(BaseChar):
         self.switch_next_char()
 
     def _ensure_first_rotation_con(self):
-        """完整输出轴切人前确保协奏打满（大招中途快切不会走到这里）。"""
         if not self.first_rotation_done:
             self.first_rotation_done = True
-        if self.is_con_full():
-            return
-        # 赞妮大招态由 zani_linkage 提前 return；此处再挡一层
-        if self.get_zani_state() == 1:
-            return
-        self.logger.info('phoebe: wait for full con before switch')
-        self.continues_normal_attack(5.0, until_con_full=True)
+            if not self.is_con_full():
+                self.logger.info('phoebe: first rotation, wait for full con')
+                self.continues_normal_attack(5.0, until_con_full=True)
 
     def zani_linkage(self):
         self.logger.debug('zani linkage')
@@ -124,7 +116,6 @@ class Phoebe(BaseChar):
                 if result == 0 or self.char_zani.liberation_time_left() > 3:
                     self.continues_normal_attack(1, interval=0.15)
             else:
-                # 首轮跳过 E；之后 confession 已经就绪时也不要短按 E，避免打断协奏轴。
                 if self.first_rotation_done and not self.confession_ready():
                     self.click_resonance(send_click=False)
             return True
@@ -331,7 +322,6 @@ class Phoebe(BaseChar):
         return State.UNAVAILABLE
 
     def _try_liberation_now(self):
-        """每个主要动作前检查大招，可用就立即释放，返回True表示已释放"""
         if (self.star_available and not self.flying()
                 and self.liberation_available()):
             if self.click_liberation(send_click=True):
@@ -342,8 +332,6 @@ class Phoebe(BaseChar):
         return False
 
     def _try_cast_liberation_before_switch(self):
-        # 有大放大:flying / zani_linkage / 共鸣等提前切人的分支可能带着可用大招切走,
-        # 在此切人前补放一次。加保护:仅辅助型、不在空中、每轮不重复放
         if self.attribute != 2:
             return False
         if self.state.get("priority_liberation_cast"):
@@ -491,37 +479,37 @@ class Phoebe(BaseChar):
                 return char.auto_dodge(condition = self.flying)  
 
 phoebe_blue_color = {
-    'r': (124, 134),  # Red range
-    'g': (176, 186),  # Green range
-    'b': (250, 255)  # Blue range
+    'r': (124, 134),
+    'g': (176, 186),
+    'b': (250, 255)
 }
 
 phoebe_light_color = {
-    'r': (250, 255),  # Red range
-    'g': (250, 255),  # Green range
-    'b': (175, 185)  # Blue range
+    'r': (250, 255),
+    'g': (250, 255),
+    'b': (175, 185)
 }
 
 phoebe_forte_light_color = {
-    'r': (240, 255),  # Red range
-    'g': (240, 255),  # Green range
-    'b': (165, 195)  # Blue range
+    'r': (240, 255),
+    'g': (240, 255),
+    'b': (165, 195)
 }
 
 phoebe_forte_blue_color = {
-    'r': (225, 255),  # Red range
-    'g': (225, 255),  # Green range
-    'b': (190, 225)  # Blue range
+    'r': (225, 255),
+    'g': (225, 255),
+    'b': (190, 225)
 }
 
 phoebe_star_light_color = {
-    'r': (235, 255),  # Red range
-    'g': (220, 250),  # Green range
-    'b': (160, 190)  # Blue range
+    'r': (235, 255),
+    'g': (220, 250),
+    'b': (160, 190)
 }
 
 phoebe_star_blue_color = {
-    'r': (240, 255),  # Red range
-    'g': (240, 255),  # Green range
-    'b': (240, 255)  # Blue range
+    'r': (240, 255),
+    'g': (240, 255),
+    'b': (240, 255)
 }
