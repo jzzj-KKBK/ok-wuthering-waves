@@ -321,6 +321,13 @@ class Phoebe(BaseChar):
             return State.SUCCESS
         return State.UNAVAILABLE
 
+    def switch_next_char(self, *args, **kwargs):
+        self._try_cast_liberation_before_switch()
+        if self.attribute == 2 and self.is_con_full():
+            self.click_echo()
+            self.state["outro"] += 1
+        return super().switch_next_char(*args, **kwargs)
+
     def _try_liberation_now(self):
         if (self.star_available and not self.flying()
                 and self.liberation_available()):
@@ -347,13 +354,6 @@ class Phoebe(BaseChar):
             self.check_combat()
             return True
         return False
-
-    def switch_next_char(self, *args, **kwargs):
-        self._try_cast_liberation_before_switch()
-        if self.attribute == 2 and self.is_con_full():
-            self.click_echo()
-            self.state["outro"] += 1
-        return super().switch_next_char(*args, **kwargs)
 
     def get_switch_priority(self, current_char=None, has_intro=False, target_low_con=False):
         if not has_intro and self.last_outro_time > 0 and self.time_elapsed_accounting_for_freeze(
