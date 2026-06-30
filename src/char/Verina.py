@@ -1,6 +1,7 @@
-import time
+﻿import time
 
 from src.char.BaseChar import BaseChar, SwitchPriority
+from src.combat.team_rotations import advance_lhv_phase, get_lhv_phase, get_rotation_switch_priority, perform_rotation_phase
 
 
 class Verina(BaseChar):
@@ -19,8 +20,33 @@ class Verina(BaseChar):
         self.last_heavy = -1
 
     def do_perform(self):
+        if self.linnai_havoc_rover_verina_rotation():
+            return
         self.perform_combat()
         self.switch_next_char()
+
+    def linnai_havoc_rover_verina_rotation(self):
+        return perform_rotation_phase(self, get_lhv_phase, advance_lhv_phase)
+
+    def lhv_verina_full_support(self):
+        self.continues_normal_attack(0.85)
+        self.click_resonance(send_click=True, time_out=0)
+        self.click_liberation()
+        self.lhv_verina_jump_fill_concerto()
+        self.click_echo(time_out=0)
+
+    def lhv_verina_bridge_support(self):
+        self.continues_normal_attack(0.85)
+        self.click_resonance(send_click=True, time_out=0)
+        self.click_liberation()
+
+    def lhv_verina_jump_fill_concerto(self):
+        start = time.time()
+        self.task.jump(after_sleep=0.01)
+        while not self.is_con_full() and time.time() - start < 4.5:
+            self.click(interval=0.1)
+            self.check_combat()
+            self.task.next_frame()
         
     def perform_combat(self):
         """3A -> 大招 -> E -> 声骸 -> (重击) -> 跳跃 -> 2A; 协奏满/超时则提前结束去切人。"""
@@ -74,6 +100,10 @@ class Verina(BaseChar):
         return self.time_elapsed_accounting_for_freeze(self.start) >= self.FIELD_TIME
 
     def get_switch_priority(self, current_char=None, has_intro=False, target_low_con=False):
+        priority = get_rotation_switch_priority(self, get_lhv_phase)
+        if priority is not None:
+            return priority
         if has_intro and current_char and current_char.char_name in {'char_hiyuki'}:
             return SwitchPriority.MUST
         return super().get_switch_priority(current_char, has_intro, target_low_con)
+
