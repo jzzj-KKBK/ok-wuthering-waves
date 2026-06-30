@@ -1081,6 +1081,29 @@ class TestChar(TaskTestCase):
         combat.chars = [current, blocked_healer, blocked_sub_dps, blocked_main_dps]
         self.assertEqual(combat._choose_switch_target(current, True), current)
 
+    def test_linnai_havoc_rover_verina_rotation_matches_complete_team(self):
+        from src.combat.team_rotations import (
+            LHV_LOOP_START,
+            ensure_linnai_havoc_rover_verina_rotation,
+            match_team_rotation,
+        )
+
+        task = RotationTask()
+        rover = HavocRover(task, 0, ring_index=Elements.HAVOC)
+        linnai = Linnai(task, 1)
+        verina = Verina(task, 2)
+        task.chars = [rover, linnai, verina]
+        rotation = ensure_linnai_havoc_rover_verina_rotation(task)
+
+        self.assertIsNotNone(match_team_rotation(task))
+        self.assertEqual(rotation["phase"], 0)
+        rotation["phase"] = 99
+        self.assertEqual(match_team_rotation(task).get_phase(task), ("Linnai", "lhv_linnai_burst_to_rover"))
+        self.assertEqual(rotation["phase"], LHV_LOOP_START)
+
+        task.chars = [rover, linnai]
+        self.assertIsNone(match_team_rotation(task))
+
     def test_zani_phoebe_rover_rotation_forces_scripted_target(self):
         from src.combat.team_rotations import (
             ZPR_LOOP_START,
