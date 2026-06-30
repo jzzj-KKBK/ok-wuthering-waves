@@ -1,4 +1,7 @@
+import time
+
 from src.char.BaseChar import BaseChar, SwitchPriority, forte_white_color
+from src.combat.team_rotations import advance_lhv_phase, get_lhv_phase, get_rotation_switch_priority, perform_rotation_phase
 
 class Linnai(BaseChar):
     CON_READY_TO_SWITCH = 0.99
@@ -12,6 +15,8 @@ class Linnai(BaseChar):
         self.last_heavy = 0
 
     def do_perform(self):
+        if self.linnai_havoc_rover_verina_rotation():
+            return
         if self.has_intro:
             if self.is_con_ready_to_switch():
                 return self.switch_after_liberation()
@@ -57,15 +62,48 @@ class Linnai(BaseChar):
 
         return self.switch_after_liberation()
 
+    def linnai_havoc_rover_verina_rotation(self):
+        return perform_rotation_phase(self, get_lhv_phase, advance_lhv_phase, wait_down_if_flying=True)
+
+    def lhv_linnai_quick_e(self):
+        self.wait_down()
+        self.click_resonance(time_out=0.5)
+
+    def lhv_linnai_burst_to_rover(self):
+        self.wait_down()
+        if self.wait_for_accelerate_ready():
+            self.click_liberation()
+            self.lhv_linnai_fill_concerto()
+        else:
+            self.charge_heavy()
+        self.click_echo(time_out=0)
+
+    def lhv_linnai_fill_concerto(self):
+        start = time.time()
+        while not self.is_con_ready_to_switch() and time.time() - start < 8:
+            if self.is_mouse_forte_full():
+                self.task.mouse_down()
+                self.task.wait_until(lambda: not self.is_mouse_forte_full() or self.is_con_ready_to_switch(),
+                                     time_out=3)
+                self.task.mouse_up()
+                self.sleep(0.2)
+            elif self.resonance_available():
+                if self.click_resonance()[0]:
+                    self.wait_after_resonance_kick()
+            else:
+                self.click(interval=0.1)
+            self.check_combat()
+            self.task.next_frame()
+
     def switch_after_liberation(self):
         if self.liberation_available():
             self.click_liberation()
         return self.switch_next_char()
 
     def charge_heavy(self):
-        """攒满回路后蓄力重击; 攒满即放, 放完接 perform_under_intro。
+        """攒满回路后蓄力重击，放完后接 perform_under_intro。
 
-        无论是否协奏入场都执行: Mornye 不满协奏切来时(has_intro=False)也要蓄力, 故不再用 has_intro 门控.
+        无论是否协奏入场都执行；Mornye 不满协奏切来时也要蓄力。
         """
         self.continues_normal_attack(1)
         self.click_echo(time_out=0)
@@ -123,7 +161,7 @@ class Linnai(BaseChar):
         self.wait_down()
 
     def wait_for_accelerate_ready(self):
-        """等待琳奈入场后的目标状态稳定，避免特效遮挡导致一帧误判。"""
+        """等待琳奈入场后的目标状态稳定，避免特效遮挡导致误判。"""
         if self.check_res():
             return True
         time_out = self.INTRO_RES_WAIT
@@ -171,6 +209,9 @@ class Linnai(BaseChar):
         self.switch_other_char()
 
     def get_switch_priority(self, current_char=None, has_intro=False, target_low_con=False):
+        priority = get_rotation_switch_priority(self, get_lhv_phase)
+        if priority is not None:
+            return priority
         # Mornye 离场就强制切 Linnai
         if current_char and current_char.char_name in self.MORNYE_NAMES:
             return SwitchPriority.MUST
