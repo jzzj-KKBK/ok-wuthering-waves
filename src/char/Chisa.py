@@ -1,7 +1,7 @@
 import time
 
 from src.char.BaseChar import BaseChar, CharType, SwitchPriority, get_default_buff_time
-from src.char.TeamRotations import advance_cqc_phase, get_cqc_phase, get_rotation_switch_priority, perform_rotation_phase
+from src.combat.team_rotations import advance_cqc_phase, get_cqc_phase, get_rotation_switch_priority, perform_rotation_phase
 
 
 class Chisa(BaseChar):

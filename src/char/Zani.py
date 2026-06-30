@@ -7,7 +7,7 @@ import numpy as np
 import math
 
 from src.char.BaseChar import BaseChar, SwitchPriority, forte_white_color
-from src.char.TeamRotations import advance_zpr_phase, get_zpr_phase, get_rotation_switch_priority, perform_rotation_phase
+from src.combat.team_rotations import advance_zpr_phase, get_zpr_phase, get_rotation_switch_priority, perform_rotation_phase
 from ok import color_range_to_bound
 
 class State(Enum):

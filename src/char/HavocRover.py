@@ -1,6 +1,6 @@
 import time
 from src.char.BaseChar import BaseChar, Elements, SwitchPriority
-from src.char.TeamRotations import advance_zpr_phase, get_zpr_phase, get_rotation_switch_priority, perform_rotation_phase
+from src.combat.team_rotations import advance_zpr_phase, get_zpr_phase, get_rotation_switch_priority, perform_rotation_phase
 
 
 class HavocRover(BaseChar):
