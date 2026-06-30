@@ -1,7 +1,7 @@
 import time, cv2
 import numpy as np
 from src.char.BaseChar import BaseChar, SwitchPriority, forte_white_color
-from src.char.TeamRotations import get_cqc_phase, get_rotation_switch_priority, perform_rotation_phase, advance_cqc_phase
+from src.combat.team_rotations import get_cqc_phase, get_rotation_switch_priority, perform_rotation_phase, advance_cqc_phase
 
 
 class Cartethyia(BaseChar):
