@@ -7,6 +7,7 @@ import numpy as np
 import math
 
 from src.char.BaseChar import BaseChar, SwitchPriority, forte_white_color
+from src.combat.team_rotations import advance_zpr_phase, get_zpr_phase, get_rotation_switch_priority, perform_rotation_phase
 from ok import color_range_to_bound
 
 class State(Enum):
@@ -44,6 +45,8 @@ class Zani(BaseChar):
     def do_perform(self):
         if self.blazes_threshold == -1:
             self.decide_teammate()
+        if self.zani_phoebe_rover_rotation():
+            return
 
         self.wait_down()
         self.check_liber()
@@ -258,3 +261,63 @@ class Zani(BaseChar):
 
     def perform_nightfall(self, cancel_last_smash=False):
         self.sleep(1.0)
+
+    def zani_phoebe_rover_rotation(self):
+        return perform_rotation_phase(self, get_zpr_phase, advance_zpr_phase)
+
+    def zani_e_a(self):
+        self.wait_down()
+        self.click_resonance(send_click=False, time_out=0.4)
+        self.continues_normal_attack(0.25)
+
+    def zani_a(self):
+        self.wait_down()
+        self.continues_normal_attack(0.25)
+
+    def zani_e(self):
+        self.wait_down()
+        self.click_resonance(send_click=False, time_out=0.4)
+
+    def zani_aa(self):
+        self.wait_down()
+        self.continues_normal_attack(0.4)
+
+    def zani_aaa(self):
+        self.wait_down()
+        if self.in_liberation:
+            self.nightfall_combo()
+        else:
+            self.continues_normal_attack(0.7)
+
+    def zani_q_r_aaa(self):
+        self.wait_down()
+        if self.click_liberation(send_click=True):
+            self.in_liberation = True
+            self.liberation_time = time.time()
+            self.state = 1
+        self.click_echo(time_out=0)
+        if self.in_liberation:
+            self.nightfall_combo(cancel_last_smash=True)
+        else:
+            self.continues_normal_attack(0.7)
+
+    def zani_e_q_r_aaa(self):
+        self.wait_down()
+        self.click_resonance(send_click=False, time_out=0.4)
+        self.zani_q_r_aaa()
+
+    def zani_r_e_a(self):
+        self.wait_down()
+        self.click_echo(time_out=0)
+        self.click_resonance(send_click=False, time_out=0.4)
+        self.continues_normal_attack(0.25)
+
+    def get_switch_priority(self, current_char=None, has_intro=False, target_low_con=False):
+        priority = get_rotation_switch_priority(self, get_zpr_phase)
+        if priority is not None:
+            return priority
+        if self.in_liberation:
+            return SwitchPriority.MUST
+        if has_intro and self.crisis_time_left() > 0:
+            return SwitchPriority.NO
+        return super().get_switch_priority(current_char, has_intro, target_low_con)
