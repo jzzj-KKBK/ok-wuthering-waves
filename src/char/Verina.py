@@ -43,7 +43,7 @@ class Verina(BaseChar):
     def lhv_verina_jump_fill_concerto(self):
         start = time.time()
         self.task.jump(after_sleep=0.01)
-        while not self.is_con_full() and time.time() - start < 4.5:
+        while not self.is_con_full() and time.time() - start < 3.2:
             self.click(interval=0.1)
             self.check_combat()
             self.task.next_frame()

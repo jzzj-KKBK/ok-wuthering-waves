@@ -63,14 +63,14 @@ class Linnai(BaseChar):
         return self.switch_after_liberation()
 
     def linnai_havoc_rover_verina_rotation(self):
-        return perform_rotation_phase(self, get_lhv_phase, advance_lhv_phase, wait_down_if_flying=True)
+        return perform_rotation_phase(self, get_lhv_phase, advance_lhv_phase)
 
     def lhv_linnai_quick_e(self):
-        self.wait_down()
+        if self.flying():
+            self.continues_normal_attack(0.1)
         self.click_resonance(time_out=0.5)
 
     def lhv_linnai_burst_to_rover(self):
-        self.wait_down()
         if self.wait_for_accelerate_ready():
             self.click_liberation()
             self.lhv_linnai_fill_concerto()
@@ -80,13 +80,13 @@ class Linnai(BaseChar):
 
     def lhv_linnai_fill_concerto(self):
         start = time.time()
-        while not self.is_con_ready_to_switch() and time.time() - start < 8:
+        while not self.is_con_ready_to_switch() and time.time() - start < 5.5:
             if self.is_mouse_forte_full():
                 self.task.mouse_down()
                 self.task.wait_until(lambda: not self.is_mouse_forte_full() or self.is_con_ready_to_switch(),
-                                     time_out=3)
+                                     time_out=1.8)
                 self.task.mouse_up()
-                self.sleep(0.2)
+                self.sleep(0.1)
             elif self.resonance_available():
                 if self.click_resonance()[0]:
                     self.wait_after_resonance_kick()
