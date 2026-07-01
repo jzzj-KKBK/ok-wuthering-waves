@@ -184,20 +184,18 @@ class TestChar(TaskTestCase):
         try:
             self.assertTrue(task.load_chars())
             self.assertEqual(info_sets, [
-                ('Combat Mode', '通用角色'),
                 ('Chars', 'CharA, CharB, CharC'),
             ])
             self.assertEqual(len(logs), 3)
 
             self.assertTrue(task.load_chars())
-            self.assertEqual(len(info_sets), 2)
+            self.assertEqual(len(info_sets), 1)
             self.assertEqual(len(logs), 3)
 
             team[1] = (CharD, 'char_d')
             self.assertTrue(task.load_chars())
             self.assertEqual(info_sets[-1], ('Chars', 'CharA, CharD, CharC'))
-            self.assertEqual(info_sets[-2], ('Combat Mode', '通用角色'))
-            self.assertEqual(len(info_sets), 4)
+            self.assertEqual(len(info_sets), 2)
             self.assertEqual(len(logs), 6)
         finally:
             base_combat_task_module.get_char_by_pos = original_get_char_by_pos
@@ -1094,7 +1092,7 @@ class TestChar(TaskTestCase):
     def test_linnai_havoc_rover_verina_rotation_matches_complete_team(self):
         from src.combat.team_rotations import (
             LHV_LOOP_START,
-            ensure_linnai_havoc_rover_verina_rotation,
+            activate_team_rotation,
             match_team_rotation,
         )
 
@@ -1103,9 +1101,10 @@ class TestChar(TaskTestCase):
         linnai = Linnai(task, 1)
         verina = Verina(task, 2)
         task.chars = [rover, linnai, verina]
-        rotation = ensure_linnai_havoc_rover_verina_rotation(task)
+        team_rotation = activate_team_rotation(task)
+        rotation = getattr(task, "_linnai_havoc_rover_verina_rotation")
 
-        self.assertIsNotNone(match_team_rotation(task))
+        self.assertIs(team_rotation, match_team_rotation(task))
         self.assertEqual(rotation["phase"], 0)
         rotation["phase"] = 99
         self.assertEqual(match_team_rotation(task).get_phase(task), ("Linnai", "lhv_linnai_burst_to_rover"))
@@ -1117,7 +1116,7 @@ class TestChar(TaskTestCase):
     def test_zani_phoebe_rover_rotation_forces_scripted_target(self):
         from src.combat.team_rotations import (
             ZPR_LOOP_START,
-            ensure_zani_phoebe_rover_rotation,
+            activate_team_rotation,
             match_team_rotation,
         )
 
@@ -1133,7 +1132,8 @@ class TestChar(TaskTestCase):
         phoebe = Phoebe(task, 1)
         rover = HavocRover(task, 2, ring_index=Elements.SPECTRO)
         task.chars = [zani, phoebe, rover]
-        rotation = ensure_zani_phoebe_rover_rotation(task)
+        activate_team_rotation(task)
+        rotation = getattr(task, "_zani_phoebe_rover_rotation")
         rotation["phase"] = ZPR_LOOP_START
 
         self.assertEqual(match_team_rotation(task).name, "赞妮菲比漂泊者固定轴")
@@ -1147,7 +1147,7 @@ class TestChar(TaskTestCase):
     def test_zani_phoebe_rover_rotation_rover_loop_starts_with_spectro_e(self):
         from src.combat.team_rotations import (
             ZPR_LOOP_START,
-            ensure_zani_phoebe_rover_rotation,
+            activate_team_rotation,
         )
 
         class Task:
@@ -1194,7 +1194,8 @@ class TestChar(TaskTestCase):
         phoebe = Phoebe(task, 1)
         rover = TrackingRover(task, 2)
         task.chars = [zani, phoebe, rover]
-        rotation = ensure_zani_phoebe_rover_rotation(task)
+        activate_team_rotation(task)
+        rotation = getattr(task, "_zani_phoebe_rover_rotation")
         rotation["phase"] = ZPR_LOOP_START
 
         rover.do_perform()
@@ -1207,7 +1208,7 @@ class TestChar(TaskTestCase):
         self.assertNotEqual(rotation["phase"], ZPR_LOOP_START)
 
     def test_cartethyia_qiuyuan_chisa_rotation_forces_scripted_target(self):
-        from src.combat.team_rotations import ensure_cartethyia_qiuyuan_chisa_rotation
+        from src.combat.team_rotations import activate_team_rotation
 
         class Task:
             char_config = {}
@@ -1228,7 +1229,8 @@ class TestChar(TaskTestCase):
         qiuyuan = Qiuyuan(task, 1)
         chisa = Chisa(task, 2)
         task.chars = [cartethyia, qiuyuan, chisa]
-        rotation = ensure_cartethyia_qiuyuan_chisa_rotation(task)
+        activate_team_rotation(task)
+        rotation = getattr(task, "_cartethyia_qiuyuan_chisa_rotation")
 
         self.assertEqual(rotation["phase"], 0)
         self.assertEqual(chisa.get_switch_priority(current_char=cartethyia), SwitchPriority.MUST)
@@ -1236,7 +1238,7 @@ class TestChar(TaskTestCase):
         self.assertEqual(qiuyuan.get_switch_priority(current_char=chisa), SwitchPriority.NO)
 
     def test_cartethyia_qiuyuan_chisa_rotation_chisa_starts_with_e(self):
-        from src.combat.team_rotations import ensure_cartethyia_qiuyuan_chisa_rotation
+        from src.combat.team_rotations import activate_team_rotation
 
         class Task:
             char_config = {}
@@ -1272,7 +1274,8 @@ class TestChar(TaskTestCase):
         qiuyuan = Qiuyuan(task, 1)
         chisa = TrackingChisa(task, 2)
         task.chars = [cartethyia, qiuyuan, chisa]
-        rotation = ensure_cartethyia_qiuyuan_chisa_rotation(task)
+        activate_team_rotation(task)
+        rotation = getattr(task, "_cartethyia_qiuyuan_chisa_rotation")
         rotation["phase"] = 0
 
         chisa.do_perform()

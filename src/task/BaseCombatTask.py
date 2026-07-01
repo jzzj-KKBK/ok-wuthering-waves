@@ -383,6 +383,7 @@ class BaseCombatTask(CombatCheck):
         if wait_combat_time > 0:
             result = self.wait_combat(target=target, time_out=wait_combat_time, raise_if_not_found=raise_if_not_found)
         self.load_chars()
+        self.activate_combat_rotation()
         self.info['Combat Count'] = self.info.get('Combat Count', 0) + 1
         try:
             while self.in_combat():
@@ -900,6 +901,24 @@ class BaseCombatTask(CombatCheck):
         current_char = self.get_current_char(raise_exception=False)
         if current_char:
             self.get_current_char().on_combat_end(self.chars)
+        self.clear_combat_rotation()
+
+    def activate_combat_rotation(self):
+        """战斗开始时激活一次特定配队固定轴。"""
+        from src.combat.team_rotations import activate_team_rotation
+        rotation = activate_team_rotation(self)
+        if rotation:
+            self.info_set('Combat Mode', f'特定配队: {rotation.name}')
+            self.log_info(f'activated team rotation {rotation.name}')
+        else:
+            self.info_set('Combat Mode', '通用角色')
+        return rotation
+
+    def clear_combat_rotation(self):
+        """战斗结束或离队时清理固定轴状态。"""
+        from src.combat.team_rotations import clear_team_rotations
+        clear_team_rotations(self)
+        self.team_rotation = None
 
     def switch_healer(self):
         if self.config.get('Switch to Healer after Combat'):
@@ -973,10 +992,9 @@ class BaseCombatTask(CombatCheck):
         self.load_hotkey()
         in_team, current_index, count = self.in_team()
         if not in_team:
-            self.team_rotation = None
+            self.clear_combat_rotation()
             return
         previous_char_identity = self._char_identity(self.chars)
-        previous_rotation_name = self.team_rotation.name if self.team_rotation else None
         # self.log_info('load chars')
         self.chars[0] = get_char_by_pos(self, self.get_box_by_name('box_char_1'), 0, safe_get(self.chars, 0))
         self.chars[1] = get_char_by_pos(self, self.get_box_by_name('box_char_2'), 1, safe_get(self.chars, 1))
@@ -1001,14 +1019,7 @@ class BaseCombatTask(CombatCheck):
                     char.is_current_char = False
         self.combat_start = time.time()
         if len(self.chars) >= 2:
-            from src.combat.team_rotations import match_team_rotation
-            self.team_rotation = match_team_rotation(self)
-            current_rotation_name = self.team_rotation.name if self.team_rotation else None
             team_changed = self._char_identity(self.chars) != previous_char_identity
-            rotation_changed = current_rotation_name != previous_rotation_name
-            if team_changed or rotation_changed:
-                mode = f'特定配队: {current_rotation_name}' if current_rotation_name else '通用角色'
-                self.info_set('Combat Mode', mode)
             if team_changed:
                 translated_names = []
                 for c in self.chars:
