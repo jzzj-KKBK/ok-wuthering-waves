@@ -9,6 +9,16 @@ class TeamRotation:
     def match(self, task):
         return False
 
+    def active(self, task):
+        return getattr(task, "team_rotation", None) is self
+
+    def reset(self, task, phase=0):
+        setattr(task, self.rotation_attr, {"phase": phase})
+
+    def clear(self, task):
+        if hasattr(task, self.rotation_attr):
+            delattr(task, self.rotation_attr)
+
     def ensure(self, task):
         if not self.match(task):
             return None
@@ -19,6 +29,8 @@ class TeamRotation:
         return rotation
 
     def get_phase(self, task):
+        if not self.active(task):
+            return None
         rotation = self.ensure(task)
         if rotation is None:
             return None
@@ -29,6 +41,8 @@ class TeamRotation:
         return self.phases[phase]
 
     def advance_phase(self, task):
+        if not self.active(task):
+            return
         rotation = self.ensure(task)
         if rotation is None:
             return

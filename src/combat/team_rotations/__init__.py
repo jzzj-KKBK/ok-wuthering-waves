@@ -15,7 +15,12 @@ from src.combat.team_rotations.linnai_havoc_rover_verina import (
     get_lhv_phase,
     is_linnai_havoc_rover_verina_team,
 )
-from src.combat.team_rotations.registry import ROTATIONS, match_team_rotation
+from src.combat.team_rotations.registry import (
+    ROTATIONS,
+    activate_team_rotation,
+    clear_team_rotations,
+    match_team_rotation,
+)
 from src.combat.team_rotations.zani_phoebe_rover import (
     ZPR_LOOP_START,
     ZPR_PHASES,
