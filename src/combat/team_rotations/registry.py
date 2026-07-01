@@ -16,3 +16,19 @@ def match_team_rotation(task):
         if rotation.match(task):
             return rotation
     return None
+
+
+def clear_team_rotations(task):
+    """清理所有固定轴状态，避免下一场战斗继承上一场 phase。"""
+    for rotation in ROTATIONS:
+        rotation.clear(task)
+
+
+def activate_team_rotation(task):
+    """战斗开始时激活一次固定轴，整场战斗不再动态重判。"""
+    clear_team_rotations(task)
+    rotation = match_team_rotation(task)
+    task.team_rotation = rotation
+    if rotation is not None:
+        rotation.reset(task)
+    return rotation

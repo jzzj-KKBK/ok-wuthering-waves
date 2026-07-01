@@ -43,16 +43,14 @@ class HavocRover(BaseChar):
         return perform_rotation_phase(self, get_zpr_phase, advance_zpr_phase, wait_down=True)
 
     def linnai_havoc_rover_verina_rotation(self):
-        return perform_rotation_phase(self, get_lhv_phase, advance_lhv_phase, wait_down=True)
+        return perform_rotation_phase(self, get_lhv_phase, advance_lhv_phase)
 
     def lhv_rover_open_e(self):
         self.init()
-        self.wait_down()
         self.click_resonance(send_click=False, time_out=0.4)
 
     def lhv_rover_burst_after_linnai(self):
         self.init()
-        self.wait_down()
         self.click_resonance(send_click=False, time_out=0.4)
         if not self.heavy_click_forte(check_fun=self.is_mouse_forte_full):
             self.heavy_attack(0.35)
@@ -64,14 +62,14 @@ class HavocRover(BaseChar):
     def lhv_rover_empty_forte(self):
         start = time.time()
         empty_start = 0
-        while time.time() - start < 4.5:
+        while time.time() - start < 3.2:
             if self.is_mouse_forte_full():
                 empty_start = 0
                 self.heavy_click_forte(check_fun=self.is_mouse_forte_full)
             else:
                 if empty_start == 0:
                     empty_start = time.time()
-                if time.time() - empty_start > 0.8:
+                if time.time() - empty_start > 0.5:
                     break
                 self.click(interval=0.1)
             self.check_combat()
