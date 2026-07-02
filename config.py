@@ -83,8 +83,12 @@ config = {
                            re.compile('CNativeLoginDlg'), 'Static', 'ComboBox', 'ComboLBox', 'Button'
                            ],
         'calculate_pc_exe_path': calculate_pc_exe_path,
-        'exe': 'Client-Win64-Shipping.exe',
-        'hwnd_class': 'UnrealWindow',
+        # 启动器点击“开始游戏”后，游戏窗口短时间内还没有创建。
+        # 此时如果只识别 Client-Win64-Shipping.exe，会误判为未启动并再次拉起启动器。
+        'exe': ['Client-Win64-Shipping.exe', 'Wuthering Waves.exe'],
+        'hwnd_class': ['UnrealWindow', re.compile('CAgreementDlg'), re.compile('CLoginDlg_P_'),
+                       'CefBrowserWindow', 'Chrome_RenderWidgetHostHWND', '#32770',
+                       re.compile('CNativeLoginDlg')],
         'interaction': 'PostMessage',
         'capture_method': ['WGC', 'BitBlt_RenderFull'],  # Windows版本支持的话, 优先使用WGC, 否则使用BitBlt_Full
         'check_hdr': False,
