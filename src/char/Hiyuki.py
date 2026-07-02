@@ -14,8 +14,8 @@ class Hiyuki(BaseChar):
     INTRO_NORMAL_ATTACK_TIME: float = 1.0
     # 共鸣后接的普攻时长 (秒)
     POST_RES_NORMAL_ATTACK_TIME: float = 0.3
-    # 放完大招后、切人前的 settle (秒)
-    POST_LIB_SETTLE: float = 0.5
+    # 大招后等待右键/左键提示的最长时间 (秒)
+    POST_LIB_PROMPT_TIMEOUT: float = 1.2
     # 居合计数达此值才放 lib2 二命以下改为3
     LIB2_KENDO_COUNT: int = 4
     # lib2 CD 等待时间 (秒)
@@ -42,8 +42,7 @@ class Hiyuki(BaseChar):
         long_action2 = self.has_long_action2()
 
         if not long_action and not long_action2 and self.try_liberation_ready():
-            self.sleep(self.POST_LIB_SETTLE)
-            self.switch_next_char()
+            self.finish_after_liberation()
             return
 
         if long_action and self.task.get_cd('liberation') <= self.STANDARD_LIB_CD_MAX:
@@ -52,14 +51,12 @@ class Hiyuki(BaseChar):
         if long_action2:
             lib_success = self.perform_lib()
             if lib_success:
-                self.sleep(self.POST_LIB_SETTLE)
-                self.switch_next_char()
+                self.finish_after_liberation()
                 return
 
             elif self.lib_permission and self.liberation_available():
                 if self.hold_liberation():
-                    self.sleep(self.POST_LIB_SETTLE)
-                    self.switch_next_char()
+                    self.finish_after_liberation()
                     return
 
         self.switch_next_char()
@@ -71,6 +68,26 @@ class Hiyuki(BaseChar):
         if self.click_liberation(wait_if_cd_ready=0):
             self.logger.info('hiyuki perform liberation ready fallback')
             return True
+        return False
+
+    def finish_after_liberation(self):
+        """大招后补 A、右键、左键，左键出手后立刻切人。"""
+        self.click(interval=0.05)
+        if self.wait_hiyuki_prompt('hiyuki_right', self.POST_LIB_PROMPT_TIMEOUT):
+            self.task.click(key="right", interval=0.05)
+            if self.wait_hiyuki_prompt('hiyuki_left', self.POST_LIB_PROMPT_TIMEOUT):
+                self.click(interval=0.05)
+        self.switch_next_char()
+
+    def wait_hiyuki_prompt(self, name, time_out):
+        """等待绯雪收尾提示，等待期间持续普攻防止发呆。"""
+        start = time.time()
+        while time.time() - start < time_out:
+            if bool(self.task.find_one(name, threshold=0.5)):
+                return True
+            self.click(interval=0.05)
+            if hasattr(self.task, 'next_frame'):
+                self.task.next_frame()
         return False
 
     def perform_standard(self):
