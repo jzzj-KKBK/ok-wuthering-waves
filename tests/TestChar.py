@@ -13,6 +13,7 @@ from src.char.Linnai import Linnai
 from src.char.Lucilla import Lucilla
 from src.char.Lucy import Lucy
 from src.char.Phrolova import Phrolova
+from src.char.Hiyuki import Hiyuki
 from src.char.Rebecca import Rebecca
 from src.char.ShoreKeeper import ShoreKeeper
 from src.char.Suisui import Suisui
@@ -1339,6 +1340,45 @@ class TestChar(TaskTestCase):
         blocked_healer = BlockedChar(task, 1, char_type=CharType.HEALER)
         combat.chars = [current, blocked_healer, blocked_sub_dps, blocked_main_dps]
         self.assertEqual(combat._choose_switch_target(current, True), current)
+
+    def test_hiyuki_uses_liberation_without_long_action(self):
+        class Task:
+            use_liberation = True
+
+            def sleep(self, sec):
+                pass
+
+            def time_elapsed_accounting_for_freeze(self, start, intro_motion_freeze=False):
+                return 0
+
+        class TrackingHiyuki(Hiyuki):
+            def __init__(self, task, index):
+                super().__init__(task, index)
+                self.actions = []
+
+            def liberation_available(self, check_color=True):
+                return True
+
+            def click_liberation(self, **kwargs):
+                self.actions.append(("liberation", kwargs))
+                return True
+
+            def has_long_action(self):
+                return False
+
+            def has_long_action2(self):
+                return False
+
+            def switch_next_char(self, *args, **kwargs):
+                self.actions.append(("switch", {}))
+
+        hiyuki = TrackingHiyuki(Task(), 0)
+        hiyuki.do_perform()
+
+        self.assertEqual(hiyuki.actions, [
+            ("liberation", {"wait_if_cd_ready": 0}),
+            ("switch", {}),
+        ])
 
     def test_priority_hooks_for_ciaccona_and_phrolova(self):
         class Task:
