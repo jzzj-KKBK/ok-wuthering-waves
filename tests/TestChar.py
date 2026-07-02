@@ -1939,6 +1939,76 @@ class TestChar(TaskTestCase):
         class Task:
             use_liberation = True
 
+            def __init__(self):
+                self.actions = []
+                self.sleep_calls = []
+
+            def click(self, *args, **kwargs):
+                self.actions.append(("click", args, kwargs))
+
+            def find_one(self, name, threshold=None):
+                return name in {"hiyuki_right", "hiyuki_left"}
+
+            def next_frame(self):
+                pass
+
+            def sleep(self, sec):
+                self.sleep_calls.append(sec)
+
+            def time_elapsed_accounting_for_freeze(self, start, intro_motion_freeze=False):
+                return 0
+
+        class TrackingHiyuki(Hiyuki):
+            def __init__(self, task, index):
+                super().__init__(task, index)
+                self.actions = []
+
+            def liberation_available(self, check_color=True):
+                return True
+
+            def click_liberation(self, **kwargs):
+                self.actions.append(("liberation", kwargs))
+                return True
+
+            def has_long_action(self):
+                return False
+
+            def has_long_action2(self):
+                return False
+
+            def switch_next_char(self, *args, **kwargs):
+                self.actions.append(("switch", {}))
+
+        hiyuki = TrackingHiyuki(Task(), 0)
+        hiyuki.do_perform()
+
+        self.assertEqual(hiyuki.actions, [
+            ("liberation", {"wait_if_cd_ready": 0}),
+            ("switch", {}),
+        ])
+        self.assertEqual(hiyuki.task.actions, [
+            ("click", (), {"interval": 0.05, "down_time": 0.01}),
+            ("click", (), {"key": "right", "interval": 0.05}),
+            ("click", (), {"interval": 0.05, "down_time": 0.01}),
+        ])
+        self.assertEqual(hiyuki.task.sleep_calls, [])
+
+    def test_hiyuki_switches_if_post_liberation_prompt_missing(self):
+        class Task:
+            use_liberation = True
+
+            def __init__(self):
+                self.actions = []
+
+            def click(self, *args, **kwargs):
+                self.actions.append(("click", args, kwargs))
+
+            def find_one(self, name, threshold=None):
+                return False
+
+            def next_frame(self):
+                pass
+
             def sleep(self, sec):
                 pass
 
@@ -1946,6 +2016,8 @@ class TestChar(TaskTestCase):
                 return 0
 
         class TrackingHiyuki(Hiyuki):
+            POST_LIB_PROMPT_TIMEOUT = 0
+
             def __init__(self, task, index):
                 super().__init__(task, index)
                 self.actions = []
