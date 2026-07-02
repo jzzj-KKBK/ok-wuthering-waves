@@ -38,10 +38,18 @@ class Hiyuki(BaseChar):
         if self.has_intro:
             self.continues_normal_attack(self.INTRO_NORMAL_ATTACK_TIME)
 
-        if self.has_long_action() and self.task.get_cd('liberation') <= self.STANDARD_LIB_CD_MAX:
+        long_action = self.has_long_action()
+        long_action2 = self.has_long_action2()
+
+        if not long_action and not long_action2 and self.try_liberation_ready():
+            self.sleep(self.POST_LIB_SETTLE)
+            self.switch_next_char()
+            return
+
+        if long_action and self.task.get_cd('liberation') <= self.STANDARD_LIB_CD_MAX:
             self.perform_standard()
 
-        if self.has_long_action2():
+        if long_action2:
             lib_success = self.perform_lib()
             if lib_success:
                 self.sleep(self.POST_LIB_SETTLE)
@@ -55,6 +63,15 @@ class Hiyuki(BaseChar):
                     return
 
         self.switch_next_char()
+
+    def try_liberation_ready(self):
+        """大招已就绪时先主动释放，避免状态条识别失败导致站场发呆。"""
+        if not self.lib_permission or not self.liberation_available():
+            return False
+        if self.click_liberation(wait_if_cd_ready=0):
+            self.logger.info('hiyuki perform liberation ready fallback')
+            return True
+        return False
 
     def perform_standard(self):
         timeout = self.FIELD_TIME_OUT
