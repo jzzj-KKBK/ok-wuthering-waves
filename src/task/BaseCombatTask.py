@@ -618,7 +618,7 @@ class BaseCombatTask(CombatCheck):
             return
         self.char_alive_state[char.index] = alive
         message = f'set char alive: {char} index={char.index} alive={alive}'
-        if hasattr(self, 'log_info'):
+        if hasattr(self, 'logger'):
             self.log_info(message)
         else:
             logger.info(message)
