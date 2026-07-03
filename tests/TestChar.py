@@ -873,6 +873,9 @@ class TestChar(TaskTestCase):
         combat.in_world = lambda: True
         combat.in_combat = lambda: True
         combat.in_team_and_world = lambda: True
+        combat.load_chars = lambda **kwargs: True
+        combat.activate_combat_rotation = lambda: None
+        combat.clear_combat_rotation = lambda: None
         combat.get_current_char = lambda: CurrentChar()
         combat.try_continue_after_char_dead = lambda current: False
         combat.revive_calls = 0
