@@ -50,6 +50,11 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         self.use_liberation = self.config.get('Use Liberation')
         if not self.use_liberation and not self.in_world():  # 仅大世界生效
             self.use_liberation = True
+        if not self.load_chars():
+            return ret
+        # 角色识别完成后再次确认战斗状态，避免非战斗状态下高频空转。
+        if not self.in_combat():
+            return ret
         combat_start = time.time()
         revived_after_all_dead = False
         while self.in_combat():
