@@ -987,7 +987,7 @@ class BaseCombatTask(CombatCheck):
             if isinstance(char, char_cls):
                 return char
 
-    def load_chars(self):
+    def load_chars(self, ignore_cache=False):
         """加载队伍中的角色信息。"""
         self.load_hotkey()
         in_team, current_index, count = self.in_team()
@@ -996,11 +996,15 @@ class BaseCombatTask(CombatCheck):
             return
         previous_char_identity = self._char_identity(self.chars)
         # self.log_info('load chars')
-        self.chars[0] = get_char_by_pos(self, self.get_box_by_name('box_char_1'), 0, safe_get(self.chars, 0))
-        self.chars[1] = get_char_by_pos(self, self.get_box_by_name('box_char_2'), 1, safe_get(self.chars, 1))
+        # 深塔等玩法会在进入战斗前临时换队；战斗开始时需要绕过旧头像缓存重新识别。
+        old_char_1 = None if ignore_cache else safe_get(self.chars, 0)
+        old_char_2 = None if ignore_cache else safe_get(self.chars, 1)
+        self.chars[0] = get_char_by_pos(self, self.get_box_by_name('box_char_1'), 0, old_char_1)
+        self.chars[1] = get_char_by_pos(self, self.get_box_by_name('box_char_2'), 1, old_char_2)
 
         if count == 3:
-            new_char = get_char_by_pos(self, self.get_box_by_name('box_char_3'), 2, safe_get(self.chars, 2))
+            old_char_3 = None if ignore_cache else safe_get(self.chars, 2)
+            new_char = get_char_by_pos(self, self.get_box_by_name('box_char_3'), 2, old_char_3)
             if len(self.chars) == 2:
                 self.chars.append(new_char)
             else:

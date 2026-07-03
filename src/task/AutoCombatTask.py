@@ -60,6 +60,9 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         if not self.in_combat():
             self.clear_combat_rotation()
             return ret
+        if not self.load_chars(ignore_cache=True):
+            self.clear_combat_rotation()
+            return ret
         self.activate_combat_rotation()
         combat_start = time.time()
         revived_after_all_dead = False
