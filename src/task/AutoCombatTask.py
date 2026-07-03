@@ -53,7 +53,13 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         self.use_liberation = self.config.get('Use Liberation')
         if not self.use_liberation and not self.in_world():  # 仅大世界生效
             self.use_liberation = True
-        self.load_chars()
+        if not self.load_chars():
+            self.clear_combat_rotation()
+            return ret
+        # 只有确认进入战斗后才激活固定轴，避免非战斗状态下高频空转刷屏。
+        if not self.in_combat():
+            self.clear_combat_rotation()
+            return ret
         self.activate_combat_rotation()
         combat_start = time.time()
         revived_after_all_dead = False
