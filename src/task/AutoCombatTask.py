@@ -58,6 +58,8 @@ class AutoCombatTask(BaseCombatTask, TriggerTask):
         # 角色识别完成后再次确认战斗状态，避免非战斗状态下高频空转。
         if not self.in_combat():
             return ret
+        if not self.load_chars(ignore_cache=True):
+            return ret
         combat_start = time.time()
         switched_to_healer = False
         revived_after_all_dead = False
