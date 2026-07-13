@@ -96,6 +96,31 @@ class TestNightmareNestTask(unittest.TestCase):
         self.assertIn('open', target.cache_key)
         self.assertEqual(1800, target.box.x)
 
+    def test_find_nest_ignores_nonzero_progress_rows(self):
+        task = NightmareNestTask.__new__(NightmareNestTask)
+        task.count_re = re.compile(r"(\d{1,2})/(\d{1,2})")
+        task.queues = [lambda: None]
+        task._unreachable_nests = set()
+        task.log_info = lambda *args, **kwargs: None
+        task.height_of_screen = lambda value: 1000 * value
+        task.width_of_screen = lambda value: 2000 * value
+        task.box_of_screen = lambda *args: args
+
+        partial = FakeBox('1/36', y=200)
+        zero_progress = FakeBox('0/36', y=300)
+
+        def ocr(*args, **kwargs):
+            if kwargs.get('match'):
+                return [partial, zero_progress]
+            return [SimpleNamespace(name='open')]
+
+        task.ocr = ocr
+
+        target = task.find_nest()
+
+        self.assertIs(target.box, zero_progress)
+        self.assertIn('0/36', target.cache_key)
+
 
 if __name__ == '__main__':
     unittest.main()
