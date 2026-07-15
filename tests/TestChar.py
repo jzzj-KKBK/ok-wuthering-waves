@@ -1886,11 +1886,18 @@ class TestChar(TaskTestCase):
 
     def test_linnai_waits_after_resonance_kick(self):
         class Task:
+            def __init__(self):
+                self.jumps = 0
+
             def wait_until(self, condition, post_action=None, time_out=0, **kwargs):
-                return condition()
+                result = condition()
+                if not result and post_action:
+                    post_action()
+                    result = condition()
+                return result
 
             def jump(self):
-                pass
+                self.jumps += 1
 
         class TestLinnai(Linnai):
             def __init__(self):
@@ -1906,6 +1913,15 @@ class TestChar(TaskTestCase):
 
             def is_forte_full(self):
                 return False
+
+            def is_linnai_second_forte_gauge(self):
+                return True
+
+            def is_linnai_jump_energy_ready(self):
+                return True
+
+            def perform_second_gauge_jumps(self):
+                self.task.jumps = self.SECOND_GAUGE_JUMP_COUNT
 
             def is_con_full(self):
                 return False
@@ -1931,9 +1947,80 @@ class TestChar(TaskTestCase):
 
         linnai = TestLinnai()
         self.assertTrue(linnai.perform_under_intro())
-        self.assertEqual(linnai.resonance_clicks, 2)
-        self.assertEqual(linnai.actions, [('sleep', 0.3), ('wait_down', True),
-                                          ('sleep', 0.3), ('wait_down', True)])
+        self.assertEqual(linnai.task.jumps, linnai.SECOND_GAUGE_JUMP_COUNT)
+        self.assertEqual(linnai.resonance_clicks, 1)
+        self.assertEqual(linnai.actions, [('sleep', 0.3), ('wait_down', True)])
+
+    def test_linnai_performs_three_second_gauge_jumps(self):
+        class Task:
+            def __init__(self):
+                self.jumps = 0
+
+            def wait_until(self, condition, post_action=None, time_out=0, **kwargs):
+                result = condition()
+                if not result and post_action:
+                    post_action()
+                    result = condition()
+                return result
+
+            def jump(self):
+                self.jumps += 1
+
+        class TestLinnai(Linnai):
+            def __init__(self, task):
+                super().__init__(task, 0)
+                self.clicks = 0
+                self.jump_ready = [False, True, False, False, True, False, False, True, False]
+
+            def is_linnai_second_forte_gauge(self):
+                return True
+
+            def is_linnai_jump_energy_ready(self):
+                return self.jump_ready.pop(0)
+
+            def click(self, *args, **kwargs):
+                self.clicks += 1
+
+        task = Task()
+        linnai = TestLinnai(task)
+        linnai.perform_second_gauge_jumps()
+        self.assertEqual(linnai.clicks, linnai.SECOND_GAUGE_JUMP_COUNT)
+        self.assertEqual(task.jumps, linnai.SECOND_GAUGE_JUMP_COUNT)
+
+    def test_linnai_charges_heavy_when_first_gauge_full(self):
+        class Task:
+            def wait_until(self, condition, post_action=None, time_out=0, **kwargs):
+                return condition()
+
+        class TestLinnai(Linnai):
+            def __init__(self):
+                super().__init__(Task(), 0)
+                self.heavy_charges = 0
+
+            def check_res(self):
+                return True
+
+            def is_color_full(self):
+                return True
+
+            def is_linnai_second_forte_gauge(self):
+                return False
+
+            def is_mouse_forte_full(self):
+                return True
+
+            def charge_heavy(self):
+                self.heavy_charges += 1
+
+            def get_current_con(self):
+                return 0
+
+            def click(self, *args, **kwargs):
+                pass
+
+        linnai = TestLinnai()
+        self.assertTrue(linnai.perform_under_intro())
+        self.assertEqual(linnai.heavy_charges, 1)
 
     def test_linnai_waits_longer_after_aemeath_outro(self):
         class Task:
