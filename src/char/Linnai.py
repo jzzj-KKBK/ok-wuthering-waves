@@ -1,3 +1,6 @@
+import cv2
+import numpy as np
+
 from src.char.BaseChar import BaseChar, SwitchPriority, forte_white_color
 
 class Linnai(BaseChar):
@@ -5,6 +8,10 @@ class Linnai(BaseChar):
     RES_CHECK_THRESHOLD = 0.6
     INTRO_RES_WAIT = 1.0
     AEMEATH_INTRO_RES_WAIT = 1.6
+    MORNYE_NAMES = {'char_moning', 'char_moning_new'}
+    SECOND_GAUGE_THRESHOLD = 0.12
+    JUMP_MARKER_PROGRESS_THRESHOLD = 0.42
+    SECOND_GAUGE_JUMP_COUNT = 3
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -46,7 +53,7 @@ class Linnai(BaseChar):
             if self.is_con_ready_to_switch():
                 pass
             elif self.perform_under_intro():
-                pass
+                return self.switch_after_liberation()
             elif self.flying():
                 self.continues_normal_attack(0.1)
             elif not self.is_con_ready_to_switch() and self.click_liberation():
@@ -57,8 +64,7 @@ class Linnai(BaseChar):
         return self.switch_after_liberation()
 
     def switch_after_liberation(self):
-        if self.liberation_available():
-            self.click_liberation()
+        """琳奈离场优先交棒主 C，不在离场前继续贪大招。"""
         return self.switch_next_char()
 
     def charge_heavy(self):
@@ -89,29 +95,23 @@ class Linnai(BaseChar):
                                      time_out=1)
         if self.is_con_ready_to_switch():
             return True
-        if self.task.wait_until(lambda: not self.is_forte_full() or self.is_con_ready_to_switch(),
-             post_action=self.task.jump, time_out=3):
-            if self.is_con_ready_to_switch():
-                return True
-            if self.task.wait_until(lambda: self.is_con_ready_to_switch() or self.click_resonance()[0],
-             post_action=self.click, time_out=2):
-                if self.is_con_ready_to_switch():
-                    return True
+        if not self.task.wait_until(lambda: self.is_linnai_second_forte_gauge() or self.is_con_ready_to_switch(),
+                                    post_action=self.click, time_out=1):
+            if self.is_mouse_forte_full():
+                self.charge_heavy()
+            return True
+        if self.is_con_ready_to_switch():
+            return True
+        if not self.task.wait_until(lambda: self.is_linnai_jump_energy_ready() or self.is_con_ready_to_switch(),
+                                    post_action=self.click, time_out=1.5):
+            return True
+        self.perform_second_gauge_jumps()
+        if self.is_con_ready_to_switch():
+            return True
+        if self.task.wait_until(lambda: self.is_con_ready_to_switch() or self.click_resonance()[0],
+         post_action=self.click, time_out=1):
+            if not self.is_con_ready_to_switch():
                 self.wait_after_resonance_kick()
-                second_kick = False
-
-                def click_second_resonance():
-                    nonlocal second_kick
-                    if self.is_con_ready_to_switch():
-                        return True
-                    second_kick = self.click_resonance()[0]
-                    return second_kick
-
-                self.task.wait_until(click_second_resonance, post_action=self.click, time_out=3)
-                if second_kick:
-                    self.wait_after_resonance_kick()
-        if not self.is_con_ready_to_switch() and self.click_liberation():
-            self.task.wait_until(self.is_con_ready_to_switch, post_action=self.click_with_interval, time_out=1.2)
         return True
 
     def is_con_ready_to_switch(self):
@@ -169,8 +169,62 @@ class Linnai(BaseChar):
     def on_combat_end(self, chars):
         self.switch_other_char()
 
+
+    def perform_second_gauge_jumps(self):
+        """琳奈第二管固定执行三跳，保证 Buff 叠满后再交后续动作。"""
+        for _ in range(self.SECOND_GAUGE_JUMP_COUNT):
+            if not self.is_linnai_second_forte_gauge():
+                break
+            self.task.wait_until(self.is_linnai_jump_energy_ready, post_action=self.click, time_out=1.5)
+            self.task.jump()
+            self.task.wait_until(lambda: not self.is_linnai_jump_energy_ready() or not self.is_linnai_second_forte_gauge(),
+                                 time_out=0.8)
+
+    def hsv_color_percentage(self, box, lower, upper, name):
+        cropped = box.crop_frame(self.task.frame)
+        if cropped.size == 0:
+            return 0
+        hsv = cv2.cvtColor(cropped[:, :, :3], cv2.COLOR_BGR2HSV)
+        mask = cv2.inRange(hsv, np.array(lower), np.array(upper))
+        percent = cv2.countNonZero(mask) / mask.size
+        box.confidence = percent
+        self.task.draw_boxes(name, box)
+        return percent
+
+    def is_linnai_second_forte_gauge(self):
+        """识别琳奈第二管 UI，未确认第二管时禁止进入跳跃连段。"""
+        box = self.task.box_of_screen_scaled(2560, 1440, 1200, 1280, 1358, 1345,
+                                             name='linnai_second_gauge', hcenter=True)
+        cyan_percent = self.hsv_color_percentage(box, (80, 50, 80), (105, 255, 255),
+                                                 'linnai_second_gauge')
+        self.logger.debug(f'Linnai second gauge cyan {cyan_percent}')
+        return cyan_percent > self.SECOND_GAUGE_THRESHOLD
+
+    def linnai_jump_marker_progress(self):
+        box = self.task.box_of_screen_scaled(2560, 1440, 1040, 1295, 1505, 1330,
+                                             name='linnai_jump_marker', hcenter=True)
+        cropped = box.crop_frame(self.task.frame)
+        if cropped.size == 0:
+            return 0
+        hsv = cv2.cvtColor(cropped[:, :, :3], cv2.COLOR_BGR2HSV)
+        marker = cv2.inRange(hsv, np.array([130, 50, 100]), np.array([170, 255, 255]))
+        ys, xs = np.where(marker > 0)
+        if len(xs) < 8:
+            box.confidence = 0
+            self.task.draw_boxes('linnai_jump_marker', box)
+            return 0
+        progress = float(np.median(xs)) / max(box.width, 1)
+        box.confidence = progress
+        self.task.draw_boxes('linnai_jump_marker', box)
+        self.logger.debug(f'Linnai jump marker progress {progress}')
+        return progress
+
+    def is_linnai_jump_energy_ready(self):
+        if not self.is_linnai_second_forte_gauge():
+            return False
+        return self.linnai_jump_marker_progress() >= self.JUMP_MARKER_PROGRESS_THRESHOLD
     def get_switch_priority(self, current_char=None, has_intro=False, target_low_con=False):
         # Mornye 离场就强制切 Linnai
-        if current_char and current_char.char_name == 'char_moning':
+        if current_char and current_char.char_name in self.MORNYE_NAMES:
             return SwitchPriority.MUST
         return super().get_switch_priority(current_char, has_intro, target_low_con)
