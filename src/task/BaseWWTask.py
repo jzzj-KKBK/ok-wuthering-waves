@@ -37,6 +37,7 @@ class BaseWWTask(BaseTask):
         self.key_config = self.get_global_config('Game Hotkey')  # 游戏热键配置
         self.next_monthly_card_start = 0
         self.scene: WWScene | None = None
+        self._last_hidden_window_restore = 0
 
     @property
     def logged_in(self):
@@ -726,6 +727,7 @@ class BaseWWTask(BaseTask):
         self.info_set('current task', f'wait main esc={esc}')
         if not self.logged_in:
             time_out = 600
+        self.restore_game_window_if_hidden()
         if not self.wait_until(lambda: self.is_main(esc=esc), time_out=time_out, raise_if_not_found=False):
             raise Exception('Please start in game world and in team!')
         self.sleep(0.5)
@@ -737,6 +739,8 @@ class BaseWWTask(BaseTask):
             if self.in_realm():
                 self.esc_world_confirm()
             return True
+        if self.restore_game_window_if_hidden():
+            return False
         if self.wait_login():
             return False
         if self.handle_monthly_card():
@@ -744,6 +748,33 @@ class BaseWWTask(BaseTask):
         if esc:
             self.log_debug('main esc')
             self.back(after_sleep=2)
+            return False
+
+    def restore_game_window_if_hidden(self):
+        """游戏窗口被隐藏时先恢复窗口，避免主界面识别一直失败。"""
+        hwnd = getattr(self, 'hwnd', None)
+        if not hwnd or not getattr(hwnd, 'exists', False) or getattr(hwnd, 'visible', True):
+            return False
+        now = time.time()
+        if now - self._last_hidden_window_restore < 3:
+            return False
+        self._last_hidden_window_restore = now
+        try:
+            self.log_info('game window hidden, try restore')
+            bring_to_front = getattr(hwnd, 'bring_to_front', None)
+            if callable(bring_to_front):
+                bring_to_front()
+            interaction = getattr(self.executor, 'interaction', None)
+            try_activate = getattr(interaction, 'try_activate', None)
+            activate = getattr(interaction, 'activate', None)
+            if callable(try_activate):
+                try_activate()
+            elif callable(activate):
+                activate()
+            self.sleep(0.5)
+            return True
+        except Exception as e:
+            self.log_debug(f'restore game window failed {e}')
             return False
 
     def wait_login(self):
