@@ -43,6 +43,29 @@ class ForcedChar(BaseChar):
         return SwitchPriority.MUST
 
 
+class RotationTask:
+    """为固定轴测试提供最小队伍和时间接口。"""
+
+    char_config = {}
+    has_lavitator = False
+    use_liberation = True
+
+    def __init__(self, chars=None):
+        self.chars = chars or []
+        self.sleep_calls = []
+
+    def sleep(self, sec):
+        self.sleep_calls.append(sec)
+
+    def time_elapsed_accounting_for_freeze(self, start, intro_motion_freeze=False):
+        if intro_motion_freeze and start < 0:
+            return 10000
+        return 10000 if start < 0 else time.time() - start
+
+    def has_char(self, char_cls):
+        return next((char for char in self.chars if isinstance(char, char_cls)), None)
+
+
 class TestChar(TaskTestCase):
     task_class = AutoCombatTask
     config = config
