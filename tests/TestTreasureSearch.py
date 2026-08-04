@@ -19,7 +19,10 @@ class TestTreasureSearch(unittest.TestCase):
         task.find_one = lambda *args, **kwargs: find_calls.append((args, kwargs)) or 'treasure'
 
         self.assertEqual('treasure', task.find_treasure_icon())
-        self.assertEqual([((0.03, 0.1, 0.97, 0.81), {})], search_boxes)
+        self.assertEqual(
+            [((0.03, 0.1, 0.97, 0.81), {'hcenter': True, 'vcenter': True})],
+            search_boxes,
+        )
         self.assertEqual('treasure_search_box', find_calls[0][1]['box'])
 
     def test_walk_to_treasure_fails_after_short_search(self):
