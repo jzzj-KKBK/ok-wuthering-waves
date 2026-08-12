@@ -97,9 +97,10 @@ class TestChar(TaskTestCase):
         }
         combat.warm_up_char_features = lambda: None
         combat.in_world = lambda: True
+        combat.load_chars = lambda **kwargs: True
         combat.switch_healer = lambda: events.append('switch_healer')
         combat.combat_end = lambda: events.append('combat_end')
-        in_combat_results = iter((True, False))
+        in_combat_results = iter((True, True, False))
         combat.in_combat = lambda: next(in_combat_results)
         current = type('CurrentChar', (), {'perform': lambda self: events.append('perform')})()
         combat.get_current_char = lambda: current
@@ -1281,6 +1282,9 @@ class TestChar(TaskTestCase):
             def next_frame(self):
                 pass
 
+            def sleep(self, sec):
+                pass
+
         class TrackingAemeath(Aemeath):
             def __init__(self, task):
                 super().__init__(task, 0)
@@ -1296,9 +1300,8 @@ class TestChar(TaskTestCase):
                 self.liberation_attempts += 1
                 return self.liberation_attempts > 1
 
-            def click_resonance(self, **kwargs):
+            def send_resonance_key(self, **kwargs):
                 self.actions.append('enhance_e')
-                return True, None
 
             def click_echo(self, **kwargs):
                 return False
