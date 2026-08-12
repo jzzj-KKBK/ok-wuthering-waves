@@ -91,7 +91,7 @@ class Aemeath(BaseChar):
             self.cycle_sleep()
 
     def enhance_e_available(self):
-        if self.time_elapsed_accounting_for_freeze(self.last_enhance_e) < self.ENHANCE_E_REPEAT_GUARD:
+        if self.time_elapsed_accounting_for_freeze(self.last_res) < self.ENHANCE_E_REPEAT_GUARD:
             return False
         return self.task.find_one('aemeath_e1', threshold=0.7) or self.task.find_one('aemeath_e2',
                                                                                      threshold=0.7)
