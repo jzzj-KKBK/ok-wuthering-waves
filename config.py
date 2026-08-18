@@ -1,8 +1,21 @@
 import os
 import re
+import sys
 from pathlib import Path
 
-from ok import Box, ConfigOption, Icon
+# 旧版更新器可能遗留曾经内置的 ok/pyappify 目录，临时排除项目根目录以加载新版依赖。
+_original_sys_path = sys.path[:]
+_project_root = Path(__file__).resolve().parent
+sys.path[:] = [
+    entry for entry in sys.path
+    if Path(entry or os.curdir).resolve() != _project_root
+]
+try:
+    import pyappify as _pyappify
+    from ok import Box, ConfigOption, Icon
+finally:
+    sys.path[:] = _original_sys_path
+
 from src.task.process_feature import process_feature
 
 version = "dev"
