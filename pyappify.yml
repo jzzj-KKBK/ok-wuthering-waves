@@ -5,7 +5,7 @@ website: "http://ok-script.com/ok-ww"
 
 profiles:
   - name: "China"
-    git_url: "https://github.com/jzzj-KKBK/ok-wuthering-waves.git"
+    git_url: "https://github.com/KKBK-233/ok-wuthering-waves.git"
     admin: true
     main_script: "main.py"
     requires_python: "3.12"
