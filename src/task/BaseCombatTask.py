@@ -546,11 +546,13 @@ class BaseCombatTask(CombatCheck):
 
         return self._switch_rule_3_target(candidates)
 
-    def _choose_switch_target(self, current_char, has_intro, target_low_con=False):
+    def _choose_switch_target(self, current_char, has_intro, target_low_con=False, excluded_indices=None):
         self.update_char_alive_states()
+        excluded_indices = excluded_indices or set()
         candidates = [
             char for char in self.chars
             if char is not None and char != current_char and self.is_char_alive(char)
+               and char.index not in excluded_indices
         ]
         if not candidates:
             return current_char
@@ -702,12 +704,22 @@ class BaseCombatTask(CombatCheck):
             for char in self.chars
         )
 
-    def close_revive_prompt(self):
+    def _revive_prompt_visible(self):
+        return bool(self.find_one('revive_confirm_hcenter_vcenter', threshold=0.8))
+
+    def close_revive_prompt(self, time_out=1.0):
+        """等待复苏提示出现并关闭，确认提示消失后才继续切人。"""
         if not self.wait_feature('revive_confirm_hcenter_vcenter', threshold=0.8,
-                                 time_out=0.2, raise_if_not_found=False):
+                                 time_out=time_out, raise_if_not_found=False):
             return False
         self.send_key('esc', after_sleep=0.2)
-        return True
+        if self.wait_until(lambda: not self._revive_prompt_visible(), time_out=0.8,
+                           settle_time=0, raise_if_not_found=False):
+            return True
+        # 首次 ESC 可能被死亡动画吞掉，再补发一次并做最终确认。
+        self.send_key('esc', after_sleep=0.2)
+        return bool(self.wait_until(lambda: not self._revive_prompt_visible(), time_out=0.8,
+                                    settle_time=0, raise_if_not_found=False))
 
     def revive_all_dead_characters(self):
         """全员死亡时点击免费复苏，并等待角色回到大世界队伍态。"""
@@ -735,22 +747,39 @@ class BaseCombatTask(CombatCheck):
         return False
 
     def try_continue_after_char_dead(self, current_char):
+        """当前角色死亡后，重试切换全部可用角色，避免单次按键丢失后直接停机。"""
         self.set_char_alive(current_char, False)
         if not self.has_alive_switch_target(current_char):
             return False
         self.close_revive_prompt()
-        target = self._choose_switch_target(current_char, has_intro=False)
-        if not target or target == current_char:
-            return False
-        self.send_key(target.index + 1, after_sleep=0.2)
-        if self.wait_until(lambda: self.in_team()[0] and self.in_team()[1] == target.index,
-                           time_out=2, raise_if_not_found=False):
-            for char in self.chars:
-                if char:
-                    char.is_current_char = (char == target)
-            target.last_switch_in_time = time.time()
-            self.scene.set_in_combat()
-            return True
+        excluded_indices = set()
+        while True:
+            target = self._choose_switch_target(
+                current_char, has_intro=False, excluded_indices=excluded_indices)
+            if not target or target == current_char:
+                return False
+
+            # wait_until 会在每帧未切换成功时重发按键，可覆盖首个按键被动画吞掉的情况。
+            switched = self.wait_until(
+                lambda: self.in_team()[0] and self.in_team()[1] == target.index,
+                post_action=lambda: self.send_key(target.index + 1, after_sleep=0.1),
+                time_out=2, settle_time=0, raise_if_not_found=False)
+            if switched:
+                for char in self.chars:
+                    if char:
+                        char.is_current_char = (char == target)
+                target.last_switch_in_time = time.time()
+                self.scene.set_in_combat()
+                return True
+
+            excluded_indices.add(target.index)
+            if self.wait_feature('revive_confirm_hcenter_vcenter', threshold=0.8,
+                                 time_out=0.4, raise_if_not_found=False):
+                self.set_char_alive(target, False)
+                self.close_revive_prompt(time_out=0.1)
+                self.log_info(f'death recovery skipped dead target {target}')
+            else:
+                self.log_info(f'death recovery switch timeout {target}, trying another target')
         return False
 
     def handle_dead_switch_target(self, current_char, switch_to, has_intro, target_low_con=False):

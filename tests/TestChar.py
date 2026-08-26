@@ -856,6 +856,126 @@ class TestChar(TaskTestCase):
 
         self.assertFalse(combat.revive_all_dead_characters())
 
+    def test_close_revive_prompt_waits_for_delayed_prompt_and_confirms_closed(self):
+        combat = AutoCombatTask.__new__(AutoCombatTask)
+        state = {'visible': True}
+        observed_timeouts = []
+
+        def wait_feature(*args, **kwargs):
+            observed_timeouts.append(kwargs['time_out'])
+            return state['visible']
+
+        def send_key(key, **kwargs):
+            self.assertEqual(key, 'esc')
+            state['visible'] = False
+
+        combat.wait_feature = wait_feature
+        combat.send_key = send_key
+        combat.find_one = lambda *args, **kwargs: state['visible']
+        combat.wait_until = lambda condition, **kwargs: condition()
+
+        self.assertTrue(combat.close_revive_prompt())
+        self.assertEqual(observed_timeouts, [1.0])
+        self.assertFalse(state['visible'])
+
+    def test_dead_character_switch_retries_dropped_key(self):
+        class Scene:
+            def __init__(self):
+                self.in_combat = False
+
+            def set_in_combat(self):
+                self.in_combat = True
+
+        combat = AutoCombatTask.__new__(AutoCombatTask)
+        current = BaseChar(None, 0, char_type=CharType.MAIN_DPS)
+        target = BaseChar(None, 1, char_type=CharType.SUB_DPS)
+        combat.chars = [current, target]
+        combat.char_alive_state = [True, True]
+        combat.char_dead_votes = [0, 0]
+        combat.char_alive_votes = [0, 0]
+        combat.scene = Scene()
+        combat.log_info = lambda *args, **kwargs: None
+        combat.has_alive_switch_target = lambda *_: True
+        combat.close_revive_prompt = lambda *args, **kwargs: True
+        combat._choose_switch_target = lambda *args, **kwargs: target
+        combat.wait_feature = lambda *args, **kwargs: False
+        state = {'current_index': current.index, 'keys': 0}
+
+        def send_key(key, **kwargs):
+            self.assertEqual(key, target.index + 1)
+            state['keys'] += 1
+            if state['keys'] >= 2:
+                state['current_index'] = target.index
+
+        def wait_until(condition, post_action=None, **kwargs):
+            for _ in range(3):
+                if condition():
+                    return True
+                post_action()
+            return condition()
+
+        combat.send_key = send_key
+        combat.in_team = lambda: (True, state['current_index'], 2)
+        combat.wait_until = wait_until
+
+        self.assertTrue(combat.try_continue_after_char_dead(current))
+        self.assertEqual(state['keys'], 2)
+        self.assertTrue(target.is_current_char)
+        self.assertTrue(combat.scene.in_combat)
+
+    def test_dead_character_switch_skips_another_dead_target(self):
+        class Scene:
+            def set_in_combat(self):
+                pass
+
+        combat = AutoCombatTask.__new__(AutoCombatTask)
+        current = BaseChar(None, 0, char_type=CharType.MAIN_DPS)
+        dead_target = BaseChar(None, 1, char_type=CharType.HEALER)
+        live_target = BaseChar(None, 2, char_type=CharType.SUB_DPS)
+        combat.chars = [current, dead_target, live_target]
+        combat.char_alive_state = [True, True, True]
+        combat.char_dead_votes = [0, 0, 0]
+        combat.char_alive_votes = [0, 0, 0]
+        combat.scene = Scene()
+        combat.log_info = lambda *args, **kwargs: None
+        combat.has_alive_switch_target = lambda *_: True
+        state = {'current_index': current.index, 'prompt': False}
+
+        def choose_target(*args, excluded_indices=None, **kwargs):
+            excluded_indices = excluded_indices or set()
+            if dead_target.index not in excluded_indices:
+                return dead_target
+            if live_target.index not in excluded_indices:
+                return live_target
+            return current
+
+        def send_key(key, **kwargs):
+            if key == dead_target.index + 1:
+                state['prompt'] = True
+            elif key == live_target.index + 1:
+                state['current_index'] = live_target.index
+
+        def wait_until(condition, post_action=None, **kwargs):
+            if condition():
+                return True
+            post_action()
+            return condition()
+
+        def close_prompt(*args, **kwargs):
+            state['prompt'] = False
+            return True
+
+        combat._choose_switch_target = choose_target
+        combat.send_key = send_key
+        combat.in_team = lambda: (True, state['current_index'], 3)
+        combat.wait_until = wait_until
+        combat.wait_feature = lambda *args, **kwargs: state['prompt']
+        combat.close_revive_prompt = close_prompt
+
+        self.assertTrue(combat.try_continue_after_char_dead(current))
+        self.assertFalse(combat.char_alive_state[dead_target.index])
+        self.assertTrue(live_target.is_current_char)
+
     def test_auto_combat_revives_after_last_character_dies(self):
         class Scene:
             @staticmethod
