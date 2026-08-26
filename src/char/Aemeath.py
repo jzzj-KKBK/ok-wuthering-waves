@@ -10,6 +10,7 @@ class Aemeath(BaseChar):
     INTRO_LIBERATION_DELAY = 14
     ENHANCE_E_REPEAT_GUARD = 2
     ENHANCE_E_SETTLE_TIME = 0.25
+    SHORT_ROTATION_TIMEOUT = 3
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -28,6 +29,7 @@ class Aemeath(BaseChar):
             while self.has_long_action():
                 if self.handle_heavy():
                     self.sleep(0.3)
+            self.perform_short_rotation()
             return self.switch_next_char()
         elif self.has_intro:
             self.continues_normal_attack(2.1)
@@ -35,6 +37,28 @@ class Aemeath(BaseChar):
         self.perform_everything()
 
         self.switch_next_char()
+
+    def perform_short_rotation(self):
+        """缺少完整增益时也短暂站场，等待并释放一次可用技能。"""
+        start = time.time()
+        while self.time_elapsed_accounting_for_freeze(start) < self.SHORT_ROTATION_TIMEOUT:
+            self.cycle_start()
+            if self.handle_heavy():
+                self.sleep(0.3)
+                self.check_combat()
+                continue
+            if self.lib():
+                return True
+            if self.enhance_e_available() and self.click_enhance_e_once():
+                self.record_enhance_e()
+                self.click_echo(time_out=0)
+                self.task.next_frame()
+                self.lib()
+                return True
+            # 技能图标尚未出现时用普攻推进状态，但最多等待三秒，避免长时间抢占站场。
+            self.click()
+            self.cycle_sleep()
+        return False
 
     def lib(self):
         is_lib2 = self.lib2_available()
