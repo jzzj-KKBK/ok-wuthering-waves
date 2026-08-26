@@ -1284,7 +1284,7 @@ class TestChar(TaskTestCase):
         self.assertEqual(aemeath.actions, ['lib2'])
         self.assertTrue(aemeath.lib2_cast_this_turn)
 
-    def test_aemeath_skips_full_rotation_without_intro_and_all_buffs(self):
+    def test_aemeath_runs_short_rotation_without_intro_and_all_buffs(self):
         class TrackingAemeath(Aemeath):
             def __init__(self):
                 super().__init__(None, 0)
@@ -1293,15 +1293,59 @@ class TestChar(TaskTestCase):
             def has_long_action(self):
                 return False
 
-            def perform_everything(self):
-                self.actions.append('perform')
+            def perform_short_rotation(self):
+                self.actions.append('short_rotation')
 
             def switch_next_char(self):
                 self.actions.append('switch')
 
         aemeath = TrackingAemeath()
         aemeath.do_perform()
-        self.assertEqual(aemeath.actions, ['switch'])
+        self.assertEqual(aemeath.actions, ['short_rotation', 'switch'])
+
+    def test_aemeath_short_rotation_waits_for_and_uses_enhance_e(self):
+        class Task:
+            def next_frame(self):
+                pass
+
+        class TrackingAemeath(Aemeath):
+            def __init__(self):
+                super().__init__(Task(), 0)
+                self.actions = []
+                self.cycles = 0
+
+            def time_elapsed_accounting_for_freeze(self, start, intro_motion_freeze=False):
+                return 0
+
+            def cycle_start(self):
+                pass
+
+            def cycle_sleep(self):
+                self.cycles += 1
+
+            def handle_heavy(self):
+                return False
+
+            def lib(self):
+                return False
+
+            def enhance_e_available(self):
+                return self.cycles >= 1
+
+            def click_enhance_e_once(self):
+                self.actions.append('enhance_e')
+                return True
+
+            def click_echo(self, **kwargs):
+                self.actions.append('echo')
+
+            def click(self):
+                self.actions.append('normal_attack')
+
+        aemeath = TrackingAemeath()
+
+        self.assertTrue(aemeath.perform_short_rotation())
+        self.assertEqual(aemeath.actions, ['normal_attack', 'enhance_e', 'echo'])
 
     def test_aemeath_handle_heavy_uses_highlight_wait(self):
         class TrackingAemeath(Aemeath):
