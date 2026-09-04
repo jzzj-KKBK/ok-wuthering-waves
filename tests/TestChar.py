@@ -722,6 +722,29 @@ class TestChar(TaskTestCase):
         finally:
             base_combat_task_module.get_char_by_pos = original_get_char_by_pos
 
+    def test_team_size_decrease_requires_stable_observations(self):
+        task = BaseCombatTask.__new__(BaseCombatTask)
+        task.chars = [BaseChar(None, 0), BaseChar(None, 1), BaseChar(None, 2)]
+        task.reset_team_size_confirmation()
+        logs = []
+        task.log_info = logs.append
+
+        self.assertFalse(task.should_apply_team_size(2, now=10.0))
+        self.assertFalse(task.should_apply_team_size(2, now=10.1))
+        self.assertTrue(task.should_apply_team_size(2, now=10.2))
+        self.assertIn('team size candidate 3 -> 2', logs[0])
+        self.assertIn('team size confirmed 3 -> 2', logs[-1])
+
+    def test_team_size_increase_and_initial_load_apply_immediately(self):
+        task = BaseCombatTask.__new__(BaseCombatTask)
+        task.log_info = lambda _message: None
+        task.chars = [None, None, None]
+        task.reset_team_size_confirmation()
+        self.assertTrue(task.should_apply_team_size(3, now=10.0))
+
+        task.chars = [BaseChar(None, 0), BaseChar(None, 1)]
+        self.assertTrue(task.should_apply_team_size(3, now=10.0))
+
     def test_switch_priority_rules(self):
         class Task:
             def time_elapsed_accounting_for_freeze(self, start, intro_motion_freeze=False):
