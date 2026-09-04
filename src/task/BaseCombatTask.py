@@ -60,6 +60,9 @@ class BaseCombatTask(CombatCheck):
     dead_gray_ratio_threshold = 0.55
     alive_gray_ratio_threshold = 0.45
     char_alive_check_interval = 0.5
+    # 角色栏在窗口重绑、过场和弹窗出现时可能短暂少一格；确认后才允许缩短队伍。
+    TEAM_SIZE_CONFIRMATIONS = 2
+    TEAM_SIZE_CONFIRMATION_DELAY = 0.15
     team_revive_button = (0.5, 0.86)
     team_revive_timeout = 70
     if con_full_size is None:
@@ -84,6 +87,7 @@ class BaseCombatTask(CombatCheck):
         self.char_texts = ['char_1_text', 'char_2_text', 'char_3_text']  # 角色文本标识符列表
         self.mouse_pos = None  # 当前鼠标位置
         self.combat_start = 0  # 战斗开始时间戳
+        self.reset_team_size_confirmation()
 
         self.reset_char_alive_states()
         self.char_texts = ['char_1_text', 'char_2_text', 'char_3_text']
@@ -96,9 +100,16 @@ class BaseCombatTask(CombatCheck):
         self.char_alive_votes = [0, 0, 0]
         self.last_char_alive_check = 0
 
+    def reset_team_size_confirmation(self):
+        """清除角色栏队伍人数的临时观测结果。"""
+        self._pending_team_size = None
+        self._pending_team_size_confirmations = 0
+        self._pending_team_size_since = 0.0
+
     def do_reset_to_false(self):
         ret = super().do_reset_to_false()
         self.reset_char_alive_states()
+        self.reset_team_size_confirmation()
         return ret
 
     def add_freeze_duration(self, start, duration=-1.0, freeze_time=0.1):
@@ -1060,12 +1071,43 @@ class BaseCombatTask(CombatCheck):
             if isinstance(char, char_cls):
                 return char
 
+    def should_apply_team_size(self, observed_count, now=None):
+        """确认队伍缩短不是截图瞬态，避免把三人队误判为两人队。"""
+        known_count = sum(char is not None for char in self.chars)
+        if known_count == 0 or observed_count >= known_count:
+            self.reset_team_size_confirmation()
+            return True
+
+        if now is None:
+            now = time.monotonic()
+        if self._pending_team_size != observed_count:
+            self._pending_team_size = observed_count
+            self._pending_team_size_confirmations = 1
+            self._pending_team_size_since = now
+            self.log_info(
+                f'team size candidate {known_count} -> {observed_count}, wait for a stable frame'
+            )
+            return False
+
+        if now - self._pending_team_size_since < self.TEAM_SIZE_CONFIRMATION_DELAY:
+            return False
+
+        self._pending_team_size_confirmations += 1
+        if self._pending_team_size_confirmations < self.TEAM_SIZE_CONFIRMATIONS:
+            return False
+
+        self.log_info(f'team size confirmed {known_count} -> {observed_count}')
+        self.reset_team_size_confirmation()
+        return True
+
     def load_chars(self, ignore_cache=False):
         """加载队伍中的角色信息。"""
         self.load_hotkey()
         in_team, current_index, count = self.in_team()
         if not in_team:
             return
+        if not self.should_apply_team_size(count):
+            return False
         previous_char_identity = self._char_identity(self.chars)
         # self.log_info('load chars')
         # 深塔等玩法会在进入战斗前临时换队；战斗开始时需要绕过旧头像缓存重新识别。
