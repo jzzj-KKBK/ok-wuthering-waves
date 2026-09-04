@@ -200,7 +200,18 @@ def get_char_by_pos(task, box, index, old_char):
                                                 ring_index=info.get('ring_index', -1),
                                                 char_type=_get_char_type(task, info),
                                                 buff_time=_get_buff_time(task, info)), info)
-    task.log_info(f'could not find char {index} {info} {highest_confidence}')
+    # 常规阈值匹配失败后仅做一次诊断性扫描，不影响缓存回退逻辑。
+    best_effort_char = task.find_best_match_in_box(box, char_names, threshold=0)
+    if best_effort_char:
+        highest_confidence = best_effort_char.confidence
+        nearest_name = best_effort_char.name
+    else:
+        nearest_name = None
+    cached_name = getattr(old_char, 'char_name', None)
+    task.log_info(
+        f'could not find char {index}; cached={cached_name}; '
+        f'best={nearest_name}; confidence={highest_confidence:.3f}; threshold=0.600'
+    )
     if old_char:
         return old_char
     if task.debug:
